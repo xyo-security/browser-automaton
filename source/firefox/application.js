@@ -272,7 +272,7 @@ BrowserAutomaton.processLink=function(tabId,url) {
 
 BrowserAutomaton.processTab=function(tabId, tab) {
 	if(tab.url.indexOf("extension=23ab9c0e7b432f42000005202e2cfa11889bd299e36232cc53dbc91bc384f9b3")>=0) {
-		if((tab.url.indexOf("://localhost/")>=0)||BrowserAutomaton.matchString(tab.url,"://localhost:*/")) {
+		if((tab.url.indexOf("://localhost/")>=0)||BrowserAutomaton.matchString(tab.url,"://localhost:.*/")) {
 			BrowserAutomaton.processLink(tabId);
 			return;
 		};
