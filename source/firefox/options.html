@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en-GB" class="xui-html">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+		<meta http-equiv="X-UA-Compatible" content="IE=edge">
+		<title>Options</title>
+	</head>
+	<style>
+		#input-allowed-link{
+			margin-left: auto;
+			margin-right: auto;
+			display: block;
+		}
+
+		#allowed-link{
+			width: 100%;
+		}
+
+		@media only screen and (min-width: 700px){
+			#input-allowed-link{
+				margin-top: 30px;
+				width: 640px;
+			}
+
+			#allowed-link{
+				width: 620px;
+			}
+		}
+	</style>
+	<body>	
+	<form name="save" id="save">
+		<div id="input-allowed-link">
+			<label for="allowed-link">Allowed link</label><br />
+			<textarea rows="16" id="allowed-link" name="allowed-link"></textarea>
+			<br />
+			<button type="button" form="save" value="Save" id="allowed-link-btn">Save</button>
+			<br />
+			* Enter every allowed link separated by a new line
+			<br />
+			+ Default link localhost, is allways active
+			<br />
+			<div id="allowed-link-status"><br /></div>
+			<br />
+		</div>
+	</form>
+	<script src="options.js" defer></script>
+	</body>
+</html>
+
