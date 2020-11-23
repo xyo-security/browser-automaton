@@ -28,5 +28,11 @@
   "options_ui": {
     "page": "options.html"
   },
-  "content_security_policy": "script-src 'self'; object-src 'self'"
+  "content_security_policy": "script-src 'self'; object-src 'self'",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "browser.automaton@xyosecurity.ro",
+      "strict_min_version": "57.0"
+   }
+ }
 }
