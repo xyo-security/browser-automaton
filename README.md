@@ -6,3 +6,9 @@ Can be used by the software developers to create specific services for their app
 [Webpage](https://xyosecurity.ro/browser-automaton/)
 
 [Browser Automaton - Google Chrome Extension](https://chrome.google.com/webstore/detail/browser-automaton/ccchboloojckhbjbdchaclhdolofpckn)
+
+[Browser Automaton - Firefox Extension](https://addons.mozilla.org/en-US/firefox/addon/browser-automaton/)
+
+[Browser Automaton - Microsoft Edge Extension](https://microsoftedge.microsoft.com/addons/detail/browser-automaton/cpdgpgbbfjkcembohpodjamfgffkgchn)
+
+
