@@ -2,7 +2,7 @@
 //
 // Browser Automaton Extension
 //
-// Copyright (c) 2020 Grigore Stefan <g_stefan@yahoo.com>
+// Copyright (c) 2021 Grigore Stefan <g_stefan@yahoo.com>
 // Created by Grigore Stefan <g_stefan@yahoo.com>
 //
 // The MIT License (MIT) <http://opensource.org/licenses/MIT>
@@ -155,7 +155,7 @@
 		<br>
 		<br>
 		<br>
-		<span style="font-size:12px;">Copyright (c) 2020 Grigore Stefan</span>
+		<span style="font-size:12px;">Copyright (c) 2021 Grigore Stefan</span>
 	</div>
 	<script src="xui.complete.min.js" defer></script>
 </body>
