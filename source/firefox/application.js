@@ -270,9 +270,9 @@ BrowserAutomaton.processLink=function(tabId,url) {
 	});
 };
 
-BrowserAutomaton.processTab=function(tabId, tab) {
-	if(tab.url.indexOf("extension=23ab9c0e7b432f42000005202e2cfa11889bd299e36232cc53dbc91bc384f9b3")>=0) {
-		if((tab.url.indexOf("://localhost/")>=0)||BrowserAutomaton.matchString(tab.url,"://localhost:.*/")) {
+BrowserAutomaton.processTabURL=function(tabId, url, openerTabId) {
+	if(url.indexOf("extension=23ab9c0e7b432f42000005202e2cfa11889bd299e36232cc53dbc91bc384f9b3")>=0) {
+		if((url.indexOf("://localhost/")>=0)||BrowserAutomaton.matchString(url,"://localhost:.*/")) {
 			BrowserAutomaton.processLink(tabId);
 			return;
 		};
@@ -280,8 +280,8 @@ BrowserAutomaton.processTab=function(tabId, tab) {
 			if(Array.isArray(BrowserAutomaton.allowedLink)) {
 				for(k=0; k<BrowserAutomaton.allowedLink.length; ++k) {
 					if(BrowserAutomaton.allowedLink[k].length>4) {
-						if(BrowserAutomaton.matchString(tab.url,"://"+BrowserAutomaton.allowedLink[k])) {
-							BrowserAutomaton.processLink(tabId,tab.url);
+						if(BrowserAutomaton.matchString(url,"://"+BrowserAutomaton.allowedLink[k])) {
+							BrowserAutomaton.processLink(tabId,url);
 							return;
 						};
 					};
@@ -289,16 +289,31 @@ BrowserAutomaton.processTab=function(tabId, tab) {
 			};
 		});
 	};
-	
+
 	for(var k=0;k<BrowserAutomaton.states.length;++k){
 		if(Array.isArray(BrowserAutomaton.states[k].state.action)){
 			for(var m=0;m<BrowserAutomaton.states[k].state.action.length;++m){
-				if(BrowserAutomaton.matchString(tab.url,BrowserAutomaton.states[k].state.action[m])) {
-					BrowserAutomaton.processState(tabId,k,tab.url,"processUrl",tab.openerTabId);
+				if(BrowserAutomaton.matchString(url,BrowserAutomaton.states[k].state.action[m])) {
+					BrowserAutomaton.processState(tabId,k,url,"processUrl",openerTabId);
 				};
 			};
 		};
 	};
+};
+
+BrowserAutomaton.processTab=function(tabId, tab) {
+	chrome.tabs.executeScript(tabId, {
+		matchAboutBlank: true,
+		code: "(function(){return document.location.href;})();"
+	},function(result){
+		if(typeof(result)==="undefined"){
+			return;
+		};
+		var url=""+result;
+		if(url.length>0){
+			BrowserAutomaton.processTabURL(tabId, url, tab.openerTabId);
+		};
+	});	
 };
 
 BrowserAutomaton.listenTab=function(tabId,tab) {
