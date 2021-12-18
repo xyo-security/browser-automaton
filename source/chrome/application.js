@@ -303,18 +303,20 @@ BrowserAutomaton.processTabURL=function(tabId, url, openerTabId) {
 };
 
 BrowserAutomaton.processTab=function(tabId, tab) {
-	chrome.tabs.executeScript(tabId, {
-		matchAboutBlank: true,
-		code: "(function(){return document.location.href;})();"
-	},function(result){
-		if(typeof(result)==="undefined"){
-			return;
-		};
-		var url=""+result;
-		if(url.length>0){
-			BrowserAutomaton.processTabURL(tabId, url, tab.openerTabId);
-		};
-	});	
+	try{
+		chrome.tabs.executeScript(tabId, {
+			matchAboutBlank: true,
+			code: "(function(){return document.location.href;})();"
+		},function(result){
+			if(typeof(result)==="undefined"){
+				return;
+			};
+			var url=""+result;
+			if(url.length>0){
+				BrowserAutomaton.processTabURL(tabId, url, tab.openerTabId);
+			};
+		});	
+	}catch(e){};
 };
 
 BrowserAutomaton.listenTab=function(tabId,tab) {
