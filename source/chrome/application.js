@@ -1,7 +1,7 @@
 //
 // Browser Automaton Extension
 //
-// Copyright (c) 2021 Grigore Stefan <g_stefan@yahoo.com>
+// Copyright (c) 2020-2021 Grigore Stefan <g_stefan@yahoo.com>
 // Created by Grigore Stefan <g_stefan@yahoo.com>
 //
 // The MIT License (MIT) <http://opensource.org/licenses/MIT>
@@ -271,7 +271,7 @@ BrowserAutomaton.processLink=function(tabId,url) {
 	});
 };
 
-BrowserAutomaton.processTabURL=function(tabId, url, openerTabId) {
+BrowserAutomaton.processTabUrl=function(tabId, url, openerTabId) {
 	if(url.indexOf("extension=23ab9c0e7b432f42000005202e2cfa11889bd299e36232cc53dbc91bc384f9b3")>=0) {
 		if((url.indexOf("://localhost/")>=0)||BrowserAutomaton.matchString(url,"://localhost:.*/")) {
 			BrowserAutomaton.processLink(tabId);
@@ -290,7 +290,7 @@ BrowserAutomaton.processTabURL=function(tabId, url, openerTabId) {
 			};
 		});
 	};
-
+	
 	for(var k=0;k<BrowserAutomaton.states.length;++k){
 		if(Array.isArray(BrowserAutomaton.states[k].state.action)){
 			for(var m=0;m<BrowserAutomaton.states[k].state.action.length;++m){
@@ -303,20 +303,20 @@ BrowserAutomaton.processTabURL=function(tabId, url, openerTabId) {
 };
 
 BrowserAutomaton.processTab=function(tabId, tab) {
-	try{
-		chrome.tabs.executeScript(tabId, {
-			matchAboutBlank: true,
-			code: "(function(){return document.location.href;})();"
-		},function(result){
-			if(typeof(result)==="undefined"){
-				return;
-			};
-			var url=""+result;
-			if(url.length>0){
-				BrowserAutomaton.processTabURL(tabId, url, tab.openerTabId);
-			};
-		});	
-	}catch(e){};
+	chrome.tabs.executeScript(tabId, {
+		matchAboutBlank: true,
+		code: "(\"\"+document.location.href);"
+	},function(result) {
+		if (chrome.runtime.lastError){
+			return;
+		};
+		if(typeof(result)==="undefined"){
+			return;
+		};
+		if((""+result).length) {
+			BrowserAutomaton.processTabUrl(tabId, ""+result,tab.openerTabId);
+		};
+	});
 };
 
 BrowserAutomaton.listenTab=function(tabId,tab) {

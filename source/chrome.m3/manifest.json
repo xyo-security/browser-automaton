@@ -1,8 +1,8 @@
 {
-  "manifest_version": 2,
+  "manifest_version": 3,
   "name": "Browser Automaton",
   "description": "Run remote script to do browser automation",
-  "version": "3.1",
+  "version": "3.2",
   "icons": {
 	"16": "application-x-executable-16.png",
         "24": "application-x-executable-24.png",
@@ -12,26 +12,26 @@
    },
   "permissions": [
     "activeTab",
-    "http://*/*",
-    "https://*/*",
+    "scripting",
     "webNavigation",
     "storage"
   ],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
   "background": {
-    "scripts": ["application.js"]
+    "service_worker": "application.js"
   },
-  "browser_action": {
+  "action": {
     "default_icon": "application-x-executable-128.png",
     "default_title": "Browser Automaton"
   },
   "options_ui": {
-    "page": "options.html"
+    "page": "options.html"    
   },
-  "content_security_policy": "script-src 'self'; object-src 'self'",
-  "browser_specific_settings": {
-    "gecko": {
-      "id": "browser.automaton@xyosecurity.ro",
-      "strict_min_version": "57.0"
-   }
- }
+  "content_security_policy": {
+	"script-src": "self",
+	"object-src": "self"
+  }
 }

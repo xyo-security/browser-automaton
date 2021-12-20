@@ -1,8 +1,10 @@
 {
+"update_url": "https://clients2.google.com/service/update2/crx",
+
   "manifest_version": 2,
   "name": "Browser Automaton",
   "description": "Run remote script to do browser automation",
-  "version": "3.0",
+  "version": "3.1",
   "icons": {
 	"16": "application-x-executable-16.png",
         "24": "application-x-executable-24.png",
