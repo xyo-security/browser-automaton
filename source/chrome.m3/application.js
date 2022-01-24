@@ -1,7 +1,7 @@
 //
 // Browser Automaton Extension
 //
-// Copyright (c) 2020-2021 Grigore Stefan <g_stefan@yahoo.com>
+// Copyright (c) 2020-2022 Grigore Stefan <g_stefan@yahoo.com>
 // Created by Grigore Stefan <g_stefan@yahoo.com>
 //
 // The MIT License (MIT) <http://opensource.org/licenses/MIT>
@@ -13,7 +13,6 @@ var BrowserAutomaton={};
 
 BrowserAutomaton.elId="_900f26b2be9dd71e165c97b8168310eeeb1c7ef878d3cc2fa3d3f177e103ff21";
 BrowserAutomaton.elIdRun="_590a37958908ab6e6fa2ad8aa331a58c536a024c9ef244ef4a556fa858604d38";
-BrowserAutomaton.elIdUpdateState="_bb90e499e31a68645c940f15186b1d40d4d6d68b18752cd312b24bfae37b6cb8";
 BrowserAutomaton.fnName="_3dc656c5131d62c8fac57caec67613bb6ccbb05476c8ad39c785cbf5a5af348d";
 BrowserAutomaton.fnCheck="44d5333afbc046f0a4a00e86c2b5bbbd35e2fab8d2902d973e8030e419baa591";
 
@@ -143,66 +142,38 @@ BrowserAutomaton.updateState=function(state){
 	};
 };
 
-BrowserAutomaton.processStateResult=function(elId,tabId,index,step) {
-	if(step>15){
-		return;
+BrowserAutomaton.initStateCall=function(index,elId,fnCheck){
+	var el=document.getElementById(elId);
+	if(el){
+		return fnCheck;
 	};
-	chrome.scripting.executeScript({
-		target:{tabId: tabId},
-		func: function(elId){
-			var el=document.getElementById(elId);
-			if(el){
-				return el.innerHTML;
-			};
-			return "";
-		},
-		args: [elId]
-	},function(results){
-		const lastErr = chrome.runtime.lastError;
-		if (lastErr){
-			return;
-		};
-		var resultInfo;
-		for (resultInfo of results){
-			var result=resultInfo.result;
-			if(typeof(result)==="undefined"){
-				continue;
-			};
-			if((""+result).length==0){
-				setTimeout(function(){
-					BrowserAutomaton.processStateResult(elId,tabId,index,step+1);
-				},1000);
-				return;
-			};
-			var state={};			
-			try{
-				state=JSON.parse(result);
-			} catch(e){
-				state={};
-			};
-			BrowserAutomaton.mergeObject(BrowserAutomaton.states[index].state,state);
-			if(BrowserAutomaton.states[index].state.processEnd) {
-				delete BrowserAutomaton.states[index];
-			};
-			if(BrowserAutomaton.states[index].state.processEndAndKeepFirewall) {
-				BrowserAutomaton.states[index].code=undefined;
-			};
-			BrowserAutomaton.saveStates();
-			chrome.scripting.executeScript({
-				target:{tabId: tabId},
-				func: function(elId){
-					var el=document.getElementById(elId);
-					if(el){
-						el.innerHTML="";
-					};			
-				},
-				args: [elId]
-			});
-		};
-	});
+	el=document.createElement("div");
+	el.id = elId;
+	el.style.display = "none";
+	el.innerHTML = "";
+	document.body.appendChild(el);
+	el.addEventListener("click",function(){
+		chrome.runtime.sendMessage({
+			message: "state",
+			index: index,
+			state: el.innerHTML,
+			div: elId
+		});
+	})
+	return fnCheck;
 };
 
-BrowserAutomaton.processState=function(tabId,index,url,fnName,openerTabId){	
+BrowserAutomaton.processStateCall=function(elId,code,fnName,state){
+	var el = document.createElement("script");
+	el.textContent = "(function(){\r\n"+
+					code+";\r\n"+
+					"document.getElementById(\""+elId+"\").innerHTML=JSON.stringify("+fnName+".call("+state+"));\r\n"+
+					"document.getElementById(\""+elId+"\").click();\r\n"+
+					"})();\r\n";
+	(document.head||document.documentElement).appendChild(el);
+};
+
+BrowserAutomaton.processState=function(tabId,index,url,fnName,openerTabId){
 	if(typeof(BrowserAutomaton.states[index].code)==="undefined"){
 		return;
 	};
@@ -210,34 +181,15 @@ BrowserAutomaton.processState=function(tabId,index,url,fnName,openerTabId){
 	BrowserAutomaton.states[index].state.id=tabId;
 	BrowserAutomaton.states[index].state.parentId=openerTabId;
 	BrowserAutomaton.states[index].state.url=url;
-	BrowserAutomaton.states[index].state.version="3.1";	
+	BrowserAutomaton.states[index].state.version="3.2";
 	chrome.scripting.executeScript({
 		target:{tabId: tabId},
-		func: function(elId,code,fnName,state,fnCheck){
-			var automatonElement=document.getElementById(elId);
-			if(!automatonElement){
-				automatonElement=document.createElement("div");
-				automatonElement.id = elId;
-				automatonElement.style.display = "none";
-				automatonElement.innerHTML = "";
-				document.body.appendChild(automatonElement);
-			};
-			var automatonScript = document.createElement("script");
-			automatonScript.textContent = "(function(){\r\n"+
-				    code+";\r\n"+
-					"document.getElementById(\""+elId+"\").innerHTML=JSON.stringify("+fnName+".call("+state+"));\r\n"+					
-				    "})();\r\n";
-			(document.head||document.documentElement).appendChild(automatonScript);
-			return fnCheck;
-		},
+		func: BrowserAutomaton.initStateCall,			
 		args: [
-			BrowserAutomaton.elIdRun,
-			BrowserAutomaton.states[index].code,
-			fnName,
-			JSON.stringify(BrowserAutomaton.states[index].state),
+			index,
+			BrowserAutomaton.elIdRun,			
 			BrowserAutomaton.fnCheck			
-		],
-		world: "MAIN"
+		]
 	},function(results){
 		const lastErr = chrome.runtime.lastError;
 		if (lastErr){
@@ -249,25 +201,47 @@ BrowserAutomaton.processState=function(tabId,index,url,fnName,openerTabId){
 			if(typeof(result)==="undefined"){
 				continue;
 			};
-			if((""+result)===BrowserAutomaton.fnCheck){
-				BrowserAutomaton.processStateResult(BrowserAutomaton.elIdRun,tabId,index,0);
+			if((""+result)===BrowserAutomaton.fnCheck){	
+				chrome.scripting.executeScript({
+					target:{tabId: tabId},
+					func: BrowserAutomaton.processStateCall,						
+					args: [
+						BrowserAutomaton.elIdRun,
+						BrowserAutomaton.states[index].code,
+						fnName,
+						JSON.stringify(BrowserAutomaton.states[index].state)						
+					],
+					world: "MAIN"
+				});
 			};
 		};
 	});
 };
 
-BrowserAutomaton.processCode=function(elId,tabId,fnName,fnCheck){
-	var automatonElement=document.getElementById(elId);
-	if(automatonElement){
+BrowserAutomaton.initCode=function(url,elId,fnCheck){
+	var el=document.getElementById(elId);
+	if(el){
 		return "";
-	};	
-	automatonElement=document.createElement("div");
-	automatonElement.id = elId;
-	automatonElement.style.display = "none";
-	automatonElement.innerHTML = "";
-	document.body.appendChild(automatonElement);
-	var automatonScript = document.createElement("script");
-	automatonScript.textContent = "(function(){\r\n"+
+	};
+	el=document.createElement("div");
+	el.id = elId;
+	el.style.display = "none";
+	el.innerHTML = "";
+	document.body.appendChild(el);
+	el.addEventListener("click",function(){
+		chrome.runtime.sendMessage({			
+			message: "code",
+			code: el.innerHTML,
+			url: url,
+			div: elId
+		});
+	})
+	return fnCheck;
+};
+
+BrowserAutomaton.processCode=function(elId,fnName){
+	var el = document.createElement("script");
+	el.textContent = "(function(){\r\n"+
 				      "var counter=0;\r\n"+
 				      "var processEvent=function(){\r\n"+
 				      "\tvar retV=\"undefined\";\r\n"+
@@ -279,98 +253,31 @@ BrowserAutomaton.processCode=function(elId,tabId,fnName,fnCheck){
 				      "\t};\r\n"+
 				      "\tif(retV===\"loading\"){\r\n"+
 				      "\t\t++counter;\r\n"+
-				      "\t\tif(counter >= 15){\r\n"+
-				      "\t\t\tdocument.getElementById(\""+elId+"\").innerHTML=\"undefined\";\r\n"+
+				      "\t\tif(counter >= 15){\r\n"+				      
 				      "\t\t\treturn;\r\n"+
 				      "\t\t};\r\n"+
 				      "\t\tsetTimeout(function(){\r\n"+
 				      "\t\t\tprocessEvent();\r\n"+
 				      "\t\t},1000);\r\n"+
 				      "\t\treturn;\r\n"+
-				      "\t};\r\n"+
+				      "\t};\r\n"+					  
 				      "\tdocument.getElementById(\""+elId+"\").innerHTML=retV;\r\n"+
+					  "\tdocument.getElementById(\""+elId+"\").click();\r\n"+
 				      "};\r\n"+
 				      "processEvent();\r\n"+
 				      "})();\r\n";
-	(document.head||document.documentElement).appendChild(automatonScript);
-	return fnCheck;
-};
-
-BrowserAutomaton.processCodeResponse=function(tabId,url,step){
-	if(step>15){
-		return;
-	};
-	chrome.scripting.executeScript({
-		target:{tabId: tabId},
-		func: function(elId){
-			var el=document.getElementById(elId);
-			if(el){
-				return el.innerHTML;
-			};
-			return "";
-		},
-		args: [BrowserAutomaton.elId]
-	},function(results){
-		const lastErr = chrome.runtime.lastError;
-		if (lastErr){
-			return;
-		};
-		var resultInfo;
-		for (resultInfo of results){
-			var result=resultInfo.result;
-			if(typeof(result)==="undefined"){
-				continue;
-			};
-			if((""+result).length==0){
-				setTimeout(function(){
-					BrowserAutomaton.processResponse(tabId,url,step+1);
-				},1000);
-				return;
-			};
-			var index=BrowserAutomaton.states.length;
-			BrowserAutomaton.states[index]={
-				state:{
-					index: index,
-					id: tabId,
-					firewall:{
-						url: "about:blank",
-						allow: [],
-						deny: []
-					},
-					action: ["(.*)"],
-					protect:{
-						url: [],
-						code: undefined,
-						isProtected: false
-					}
-				},
-				code: atob(result)						
-			};
-			BrowserAutomaton.processState(tabId,index,url,"init");
-			BrowserAutomaton.processStateResult(BrowserAutomaton.elIdUpdateState,tabId,index,0);
-		};
-	});
+	(document.head||document.documentElement).appendChild(el);	
 };
 
 BrowserAutomaton.processLink=function(tabId,url){
-	if(url.indexOf("extension-action=update-state")>0){
-		var urlInfo = new URL(url);
-		var index = urlInfo.searchParams.get("extension-index");
-		if(index){
-			BrowserAutomaton.processStateResult(BrowserAutomaton.elIdUpdateState,BrowserAutomaton.states[index].state.id,index,0);
-		};
-		return;
-	};
 	chrome.scripting.executeScript({
 		target:{tabId: tabId},
-		func: BrowserAutomaton.processCode,
+		func: BrowserAutomaton.initCode,
 		args: [
+			url,
 			BrowserAutomaton.elId,
-			tabId,
-			BrowserAutomaton.fnName,
 			BrowserAutomaton.fnCheck
-		],
-		world: "MAIN"
+		]		
 	},function(results){
 		const lastErr = chrome.runtime.lastError;
 		if (lastErr){
@@ -383,10 +290,18 @@ BrowserAutomaton.processLink=function(tabId,url){
 				continue;
 			};
 			if((""+result)===BrowserAutomaton.fnCheck){
-				BrowserAutomaton.processCodeResponse(tabId,url,0);
+				chrome.scripting.executeScript({
+					target:{tabId: tabId},
+					func: BrowserAutomaton.processCode,
+					args: [
+						BrowserAutomaton.elId,
+						BrowserAutomaton.fnName						
+					],
+					world: "MAIN"
+				});
 			};
 		};
-	});	
+	});
 };
 
 BrowserAutomaton.processTabUrl=function(tabId, url, openerTabId){
@@ -557,4 +472,69 @@ chrome.tabs.query({currentWindow:true,status:"complete"},function(tabs){
 chrome.runtime.onStartup.addListener(function(){
 	BrowserAutomaton.states=[];
 	BrowserAutomaton.saveStates();
+});
+
+chrome.runtime.onMessage.addListener(function(request, sender){
+	BrowserAutomaton.loadStates(function(){
+		if(sender.tab){
+			if(typeof(request)!="undefined"){
+				if(typeof(request)==="object"){
+					if(request!=null){
+						if(typeof(request.message)=="undefined"){
+							return;
+						};
+						if(request.message=="code"){
+							var index=BrowserAutomaton.states.length;
+							BrowserAutomaton.states[index]={
+								state:{
+									index: index,
+									id: sender.tab.id,
+									firewall:{
+										url: "about:blank",
+										allow: [],
+										deny: []
+									},
+									action: ["(.*)"],
+									protect:{
+										url: [],
+										code: undefined,
+										isProtected: false
+									}
+								},
+								code: atob(request.code)
+							};
+							BrowserAutomaton.saveStates();
+							BrowserAutomaton.processState(sender.tab.id,index,request.url,"init");
+						};
+						if(typeof(request.index)!="undefined"){
+							if(request.message=="state"){
+								if(request.state!="undefined"){
+									BrowserAutomaton.mergeObject(BrowserAutomaton.states[request.index].state,JSON.parse(request.state));
+									if(BrowserAutomaton.states[request.index].state.processEnd){
+										delete BrowserAutomaton.states[request.index];
+									};
+									if(BrowserAutomaton.states[request.index].state.processEndAndKeepFirewall){
+										BrowserAutomaton.states[request.index].code=undefined;
+									};
+									BrowserAutomaton.saveStates();
+								};
+							};
+						};
+						if(typeof(request.div)!="undefined"){
+							chrome.scripting.executeScript({
+								target:{tabId: sender.tab.id},
+								func: function(elId){
+									var el=document.getElementById(elId);
+									if(el){
+										el.innerHTML="";
+									};
+								},
+								args: [request.div]
+							});
+						};												
+					};
+				};
+			};
+		};
+	});
 });
