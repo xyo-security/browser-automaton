@@ -143,7 +143,7 @@ BrowserAutomaton.updateState=function(state){
 };
 
 BrowserAutomaton.initStateCall=function(index,elId,fnCheck){
-	var el=document.getElementById(elId);
+	var el= document.getElementById(elId);
 	if(el){
 		return fnCheck;
 	};
@@ -165,12 +165,19 @@ BrowserAutomaton.initStateCall=function(index,elId,fnCheck){
 
 BrowserAutomaton.processStateCall=function(elId,code,fnName,state){
 	var el = document.createElement("script");
-	el.textContent = "(function(){\r\n"+
-					code+";\r\n"+
-					"document.getElementById(\""+elId+"\").innerHTML=JSON.stringify("+fnName+".call("+state+"));\r\n"+
-					"document.getElementById(\""+elId+"\").click();\r\n"+
-					"})();\r\n";
+	var url = URL.createObjectURL(new Blob([
+		"(function(){\r\n"+
+			code+";\r\n"+
+			"document.getElementById(\""+elId+"\").innerHTML=JSON.stringify("+fnName+".call("+state+"));\r\n"+
+			"document.getElementById(\""+elId+"\").click();\r\n"+
+		"})();\r\n"
+	],{type: "application/javascript"}));
+	el.src = url;
 	(document.head||document.documentElement).appendChild(el);
+	setTimeout(function(){
+		(document.head||document.documentElement).removeChild(el);
+		URL.revokeObjectURL(url);
+	},3000);
 };
 
 BrowserAutomaton.processState=function(tabId,index,url,fnName,openerTabId){
@@ -201,7 +208,7 @@ BrowserAutomaton.processState=function(tabId,index,url,fnName,openerTabId){
 			if(typeof(result)==="undefined"){
 				continue;
 			};
-			if((""+result)===BrowserAutomaton.fnCheck){	
+			if((""+result)===BrowserAutomaton.fnCheck){
 				chrome.scripting.executeScript({
 					target:{tabId: tabId},
 					func: BrowserAutomaton.processStateCall,						
@@ -241,32 +248,39 @@ BrowserAutomaton.initCode=function(url,elId,fnCheck){
 
 BrowserAutomaton.processCode=function(elId,fnName){
 	var el = document.createElement("script");
-	el.textContent = "(function(){\r\n"+
-				      "var counter=0;\r\n"+
-				      "var processEvent=function(){\r\n"+
-				      "\tvar retV=\"undefined\";\r\n"+
-				      "\tif(typeof("+fnName+")===\"undefined\"){\r\n"+
-				      "\t\tretV=\"loading\";\r\n"+
-				      "\t}else{\r\n"+
-				      "\t\tretV="+fnName+"();\r\n"+
-				      "\t\t"+fnName+"=function(){return \"undefined\";};\r\n"+
-				      "\t};\r\n"+
-				      "\tif(retV===\"loading\"){\r\n"+
-				      "\t\t++counter;\r\n"+
-				      "\t\tif(counter >= 15){\r\n"+				      
-				      "\t\t\treturn;\r\n"+
-				      "\t\t};\r\n"+
-				      "\t\tsetTimeout(function(){\r\n"+
-				      "\t\t\tprocessEvent();\r\n"+
-				      "\t\t},1000);\r\n"+
-				      "\t\treturn;\r\n"+
-				      "\t};\r\n"+					  
-				      "\tdocument.getElementById(\""+elId+"\").innerHTML=retV;\r\n"+
-					  "\tdocument.getElementById(\""+elId+"\").click();\r\n"+
-				      "};\r\n"+
-				      "processEvent();\r\n"+
-				      "})();\r\n";
-	(document.head||document.documentElement).appendChild(el);	
+	var url = URL.createObjectURL(new Blob([
+		"(function(){\r\n"+
+			"var counter=0;\r\n"+
+			"var processEvent=function(){\r\n"+
+			"\tvar retV=\"undefined\";\r\n"+
+			"\tif(typeof("+fnName+")===\"undefined\"){\r\n"+
+			"\t\tretV=\"loading\";\r\n"+
+			"\t}else{\r\n"+
+			"\t\tretV="+fnName+"();\r\n"+
+			"\t\t"+fnName+"=function(){return \"undefined\";};\r\n"+
+			"\t};\r\n"+
+			"\tif(retV===\"loading\"){\r\n"+
+			"\t\t++counter;\r\n"+
+			"\t\tif(counter >= 15){\r\n"+				      
+			"\t\t\treturn;\r\n"+
+			"\t\t};\r\n"+
+			"\t\tsetTimeout(function(){\r\n"+
+			"\t\t\tprocessEvent();\r\n"+
+			"\t\t},1000);\r\n"+
+			"\t\treturn;\r\n"+
+			"\t};\r\n"+					  
+			"\tdocument.getElementById(\""+elId+"\").innerHTML=retV;\r\n"+
+			"\tdocument.getElementById(\""+elId+"\").click();\r\n"+
+			"};\r\n"+
+			"processEvent();\r\n"+
+		"})();\r\n"
+	],{type: "application/javascript"}));
+	el.src = url;
+	(document.head||document.documentElement).appendChild(el);
+	setTimeout(function(){
+		(document.head||document.documentElement).removeChild(el);
+		URL.revokeObjectURL(url);
+	},3000);
 };
 
 BrowserAutomaton.processLink=function(tabId,url){
@@ -538,3 +552,4 @@ chrome.runtime.onMessage.addListener(function(request, sender){
 		};
 	});
 });
+
