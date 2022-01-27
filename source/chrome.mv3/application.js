@@ -168,7 +168,7 @@ BrowserAutomaton.processStateCall=function(elId,code,fnName,state){
 	var url = URL.createObjectURL(new Blob([
 		"(function(){\r\n"+
 			code+";\r\n"+
-			"document.getElementById(\""+elId+"\").innerHTML=JSON.stringify("+fnName+".call("+state+"));\r\n"+
+			"document.getElementById(\""+elId+"\").innerHTML=btoa(JSON.stringify("+fnName+".call("+state+")));\r\n"+
 			"document.getElementById(\""+elId+"\").click();\r\n"+
 		"})();\r\n"
 	],{type: "application/javascript"}));
@@ -181,6 +181,9 @@ BrowserAutomaton.processStateCall=function(elId,code,fnName,state){
 };
 
 BrowserAutomaton.processState=function(tabId,index,url,fnName,openerTabId){
+	if(typeof(BrowserAutomaton.states[index])==="undefined"){
+		return;
+	};
 	if(typeof(BrowserAutomaton.states[index].code)==="undefined"){
 		return;
 	};
@@ -188,7 +191,7 @@ BrowserAutomaton.processState=function(tabId,index,url,fnName,openerTabId){
 	BrowserAutomaton.states[index].state.id=tabId;
 	BrowserAutomaton.states[index].state.parentId=openerTabId;
 	BrowserAutomaton.states[index].state.url=url;
-	BrowserAutomaton.states[index].state.version="3.2";
+	BrowserAutomaton.states[index].state.version="3.3";
 	chrome.scripting.executeScript({
 		target:{tabId: tabId},
 		func: BrowserAutomaton.initStateCall,			
@@ -209,6 +212,9 @@ BrowserAutomaton.processState=function(tabId,index,url,fnName,openerTabId){
 				continue;
 			};
 			if((""+result)===BrowserAutomaton.fnCheck){
+				if(typeof(BrowserAutomaton.states[index])==="undefined"){
+					return;
+				};
 				chrome.scripting.executeScript({
 					target:{tabId: tabId},
 					func: BrowserAutomaton.processStateCall,						
@@ -216,10 +222,10 @@ BrowserAutomaton.processState=function(tabId,index,url,fnName,openerTabId){
 						BrowserAutomaton.elIdRun,
 						BrowserAutomaton.states[index].code,
 						fnName,
-						JSON.stringify(BrowserAutomaton.states[index].state)						
+						JSON.stringify(BrowserAutomaton.states[index].state)
 					],
 					world: "MAIN"
-				});
+				});				
 			};
 		};
 	});
@@ -377,6 +383,17 @@ BrowserAutomaton.matchString=function(str,what_){
 	return (new RegExp(what_,"i")).test(str);
 };
 
+BrowserAutomaton.processProtectCall=function(code){
+	var el = document.createElement("script");
+	var url = URL.createObjectURL(new Blob([code],{type: "application/javascript"}));
+	el.src = url;
+	(document.head||document.documentElement).appendChild(el);
+	setTimeout(function(){
+		(document.head||document.documentElement).removeChild(el);
+		URL.revokeObjectURL(url);
+	},3000);
+};
+
 BrowserAutomaton.processProtect=function(state,details){
 	if(state.protect){
 		if(state.protect.code){
@@ -384,14 +401,17 @@ BrowserAutomaton.processProtect=function(state,details){
 				for(var m=0;m<state.protect.url.length;++m){
 					if(BrowserAutomaton.matchString(details.url,state.protect.url[m])){
 						chrome.scripting.executeScript({
-							target:{tabId: details.tabId, frameIds: [details.frameId], runAt: "document_start"},
-							func: state.protect.code
+							target:{tabId: details.tabId, frameIds: [details.frameId]},
+							func: BrowserAutomaton.processProtectCall,
+							args: [state.protect.code],
+							world: "MAIN"
 						},function(results){
 							const lastErr = chrome.runtime.lastError;
 							if (lastErr){
 								return;
 							};
-							state.protect.isProtected=true;
+							BrowserAutomaton.states[state.index].state.protect.isProtected=true;
+							BrowserAutomaton.saveStates();
 						});
 					};
 				};
@@ -418,11 +438,12 @@ BrowserAutomaton.processFirewall=function(state,details){
 					};
 					if(details.url!==url){
 						chrome.scripting.executeScript({
-							target:{tabId: details.tabId, frameIds: [details.frameId], runAt: "document_start"},
+							target:{tabId: details.tabId, frameIds: [details.frameId]},
 							func: function(url){
 								document.location.assign(url);
 							},
-							args: [url]
+							args: [url],
+							world: "MAIN"
 						},function(results){
 							const lastErr = chrome.runtime.lastError;
 							if (lastErr){
@@ -522,8 +543,9 @@ chrome.runtime.onMessage.addListener(function(request, sender){
 						};
 						if(typeof(request.index)!="undefined"){
 							if(request.message=="state"){
-								if(request.state!="undefined"){
-									BrowserAutomaton.mergeObject(BrowserAutomaton.states[request.index].state,JSON.parse(request.state));
+								var state=atob(request.state);
+								if(state!="undefined"){
+									BrowserAutomaton.mergeObject(BrowserAutomaton.states[request.index].state,JSON.parse(state));
 									if(BrowserAutomaton.states[request.index].state.processEnd){
 										delete BrowserAutomaton.states[request.index];
 									};
