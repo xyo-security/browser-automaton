@@ -163,21 +163,75 @@ BrowserAutomaton.initStateCall=function(index,elId,fnCheck){
 	return fnCheck;
 };
 
-BrowserAutomaton.processStateCall=function(elId,code,fnName,state){
-	var el = document.createElement("script");
-	var url = URL.createObjectURL(new Blob([
-		"(function(){\r\n"+
-			code+";\r\n"+
-			"document.getElementById(\""+elId+"\").innerHTML=btoa(JSON.stringify("+fnName+".call("+state+")));\r\n"+
-			"document.getElementById(\""+elId+"\").click();\r\n"+
-		"})();\r\n"
-	],{type: "application/javascript"}));
-	el.src = url;
-	(document.head||document.documentElement).appendChild(el);
-	setTimeout(function(){
-		(document.head||document.documentElement).removeChild(el);
-		URL.revokeObjectURL(url);
-	},3000);
+BrowserAutomaton.processStateCall=function(type,elId,code,fnName,state){
+	var codeToRun =	"(function(){\r\n"+
+				code+";\r\n"+
+				"document.getElementById(\""+elId+"\").innerHTML=btoa(JSON.stringify("+fnName+".call("+state+")));\r\n"+
+				"document.getElementById(\""+elId+"\").click();\r\n"+
+			"})();\r\n";
+	if(type=="inline"){
+		var el = document.createElement("script");
+		el.textContent = codeToRun;
+		(document.head||document.documentElement).appendChild(el);
+		setTimeout(function(){
+			(document.head||document.documentElement).removeChild(el);
+		},3000);
+		return;
+	};
+	if(type=="blob"){
+		var el = document.createElement("script");
+		var url = URL.createObjectURL(new Blob([codeToRun],{type: "application/javascript"}));
+		el.src = url;
+		(document.head||document.documentElement).appendChild(el);
+		setTimeout(function(){
+			(document.head||document.documentElement).removeChild(el);
+			URL.revokeObjectURL(url);
+		},3000);
+		return;
+	};
+	var codeToRun =	"(function(){\r\n"+
+				code+";\r\n"+
+				"var trustedPolicy=trustedTypes.createPolicy(\"TrustedHTML\", {createScript(code) {return code;}});\r\n"+
+				"document.getElementById(\""+elId+"\").innerHTML=trustedPolicy.createHTML(btoa(JSON.stringify("+fnName+".call("+state+"))));\r\n"+
+				"document.getElementById(\""+elId+"\").click();\r\n"+
+			"})();\r\n";
+	if(type=="trusted-inline"){
+		var trustedPolicy=trustedTypes.createPolicy("TrustedScript", {
+			createScript(code) {
+				return code;
+			}
+		});
+		var el = document.createElement("script");
+		el.textContent = trustedPolicy.createScript(codeToRun);
+		(document.head||document.documentElement).appendChild(el);
+		setTimeout(function(){
+			(document.head||document.documentElement).removeChild(el);
+		},3000);
+		return;
+	};
+	if(type=="trusted-inline-nonce"){
+		var trustedPolicy=trustedTypes.createPolicy("TrustedScript", {
+			createScript(code) {
+				return code;
+			}
+		});
+		var nonce=null;
+		var elScripts=document.getElementsByTagName("script");
+		for(var k=0;k<elScripts.length;++k){
+			if(elScripts[k].nonce){
+				nonce=elScripts[k].nonce;
+				break;
+			};
+		};
+		var el = document.createElement("script");
+		el.textContent = trustedPolicy.createScript(codeToRun);
+		el.setAttribute("nonce",nonce);
+		(document.head||document.documentElement).appendChild(el);
+		setTimeout(function(){
+			(document.head||document.documentElement).removeChild(el);
+		},3000);		
+		return;
+	};		
 };
 
 BrowserAutomaton.processState=function(tabId,index,url,fnName,openerTabId){
@@ -217,8 +271,9 @@ BrowserAutomaton.processState=function(tabId,index,url,fnName,openerTabId){
 				};
 				chrome.scripting.executeScript({
 					target:{tabId: tabId},
-					func: BrowserAutomaton.processStateCall,						
+					func: BrowserAutomaton.processStateCall,
 					args: [
+						BrowserAutomaton.states[index].state.type,
 						BrowserAutomaton.elIdRun,
 						BrowserAutomaton.states[index].code,
 						fnName,
@@ -229,6 +284,12 @@ BrowserAutomaton.processState=function(tabId,index,url,fnName,openerTabId){
 			};
 		};
 	});
+};
+
+BrowserAutomaton.processStateCMD=function(cmd,args){
+	if(cmd=="window.open"){
+		window.open.apply(window,args);
+	};
 };
 
 BrowserAutomaton.initCode=function(url,elId,fnCheck){
@@ -253,39 +314,36 @@ BrowserAutomaton.initCode=function(url,elId,fnCheck){
 };
 
 BrowserAutomaton.processCode=function(elId,fnName){
+	var codeToRun =	"(function(){\r\n"+
+				"var counter=0;\r\n"+
+				"var processEvent=function(){\r\n"+
+				"\tvar retV=\"undefined\";\r\n"+
+				"\tif(typeof("+fnName+")===\"undefined\"){\r\n"+
+				"\t\tretV=\"loading\";\r\n"+
+				"\t}else{\r\n"+
+				"\t\tretV="+fnName+"();\r\n"+
+				"\t\t"+fnName+"=function(){return \"undefined\";};\r\n"+
+				"\t};\r\n"+
+				"\tif(retV===\"loading\"){\r\n"+
+				"\t\t++counter;\r\n"+
+				"\t\tif(counter >= 15){\r\n"+				      
+				"\t\t\treturn;\r\n"+
+				"\t\t};\r\n"+
+				"\t\tsetTimeout(function(){\r\n"+
+				"\t\t\tprocessEvent();\r\n"+
+				"\t\t},1000);\r\n"+
+				"\t\treturn;\r\n"+
+				"\t};\r\n"+					  
+				"\tdocument.getElementById(\""+elId+"\").innerHTML=retV;\r\n"+
+				"\tdocument.getElementById(\""+elId+"\").click();\r\n"+
+				"};\r\n"+
+				"processEvent();\r\n"+
+			"})();\r\n";
 	var el = document.createElement("script");
-	var url = URL.createObjectURL(new Blob([
-		"(function(){\r\n"+
-			"var counter=0;\r\n"+
-			"var processEvent=function(){\r\n"+
-			"\tvar retV=\"undefined\";\r\n"+
-			"\tif(typeof("+fnName+")===\"undefined\"){\r\n"+
-			"\t\tretV=\"loading\";\r\n"+
-			"\t}else{\r\n"+
-			"\t\tretV="+fnName+"();\r\n"+
-			"\t\t"+fnName+"=function(){return \"undefined\";};\r\n"+
-			"\t};\r\n"+
-			"\tif(retV===\"loading\"){\r\n"+
-			"\t\t++counter;\r\n"+
-			"\t\tif(counter >= 15){\r\n"+				      
-			"\t\t\treturn;\r\n"+
-			"\t\t};\r\n"+
-			"\t\tsetTimeout(function(){\r\n"+
-			"\t\t\tprocessEvent();\r\n"+
-			"\t\t},1000);\r\n"+
-			"\t\treturn;\r\n"+
-			"\t};\r\n"+					  
-			"\tdocument.getElementById(\""+elId+"\").innerHTML=retV;\r\n"+
-			"\tdocument.getElementById(\""+elId+"\").click();\r\n"+
-			"};\r\n"+
-			"processEvent();\r\n"+
-		"})();\r\n"
-	],{type: "application/javascript"}));
-	el.src = url;
+	el.textContent = codeToRun;
 	(document.head||document.documentElement).appendChild(el);
 	setTimeout(function(){
 		(document.head||document.documentElement).removeChild(el);
-		URL.revokeObjectURL(url);
 	},3000);
 };
 
@@ -383,15 +441,64 @@ BrowserAutomaton.matchString=function(str,what_){
 	return (new RegExp(what_,"i")).test(str);
 };
 
-BrowserAutomaton.processProtectCall=function(code){
-	var el = document.createElement("script");
-	var url = URL.createObjectURL(new Blob([code],{type: "application/javascript"}));
-	el.src = url;
-	(document.head||document.documentElement).appendChild(el);
-	setTimeout(function(){
-		(document.head||document.documentElement).removeChild(el);
-		URL.revokeObjectURL(url);
-	},3000);
+BrowserAutomaton.processProtectCall=function(type, codeToRun){
+	if(type=="inline"){
+		var el = document.createElement("script");
+		el.textContent = codeToRun;
+		(document.head||document.documentElement).appendChild(el);
+		setTimeout(function(){
+			(document.head||document.documentElement).removeChild(el);
+		},3000);
+		return;
+	};
+	if(type=="blob"){
+		var el = document.createElement("script");
+		var url = URL.createObjectURL(new Blob([codeToRun],{type: "application/javascript"}));
+		el.src = url;
+		(document.head||document.documentElement).appendChild(el);
+		setTimeout(function(){
+			(document.head||document.documentElement).removeChild(el);
+			URL.revokeObjectURL(url);
+		},3000);
+		return;
+	};
+	if(type=="trusted-inline"){
+		var trustedPolicy=trustedTypes.createPolicy("TrustedScript", {
+			createScript(code) {
+				return code;
+			}
+		});
+		var el = document.createElement("script");
+		el.textContent = trustedPolicy.createScript(codeToRun);
+		(document.head||document.documentElement).appendChild(el);
+		setTimeout(function(){
+			(document.head||document.documentElement).removeChild(el);
+		},3000);
+		return;
+	};
+	if(type=="trusted-inline-nonce"){
+		var trustedPolicy=trustedTypes.createPolicy("TrustedScript", {
+			createScript(code) {
+				return code;
+			}
+		});
+		var nonce=null;
+		var elScripts=document.getElementsByTagName("script");
+		for(var k=0;k<elScripts.length;++k){
+			if(elScripts[k].nonce){
+				nonce=elScripts[k].nonce;
+				break;
+			};
+		};
+		var el = document.createElement("script");
+		el.textContent = trustedPolicy.createScript(codeToRun);
+		el.setAttribute("nonce",nonce);
+		(document.head||document.documentElement).appendChild(el);
+		setTimeout(function(){
+			(document.head||document.documentElement).removeChild(el);
+		},3000);		
+		return;
+	};
 };
 
 BrowserAutomaton.processProtect=function(state,details){
@@ -403,7 +510,7 @@ BrowserAutomaton.processProtect=function(state,details){
 						chrome.scripting.executeScript({
 							target:{tabId: details.tabId, frameIds: [details.frameId]},
 							func: BrowserAutomaton.processProtectCall,
-							args: [state.protect.code],
+							args: [state.type, state.protect.code],
 							world: "MAIN"
 						},function(results){
 							const lastErr = chrome.runtime.lastError;
@@ -442,8 +549,7 @@ BrowserAutomaton.processFirewall=function(state,details){
 							func: function(url){
 								document.location.assign(url);
 							},
-							args: [url],
-							world: "MAIN"
+							args: [url]
 						},function(results){
 							const lastErr = chrome.runtime.lastError;
 							if (lastErr){
@@ -534,7 +640,10 @@ chrome.runtime.onMessage.addListener(function(request, sender){
 										url: [],
 										code: undefined,
 										isProtected: false
-									}
+									},
+									type: "inline",
+									cmd: null,
+									args: null
 								},
 								code: atob(request.code)
 							};
@@ -543,16 +652,30 @@ chrome.runtime.onMessage.addListener(function(request, sender){
 						};
 						if(typeof(request.index)!="undefined"){
 							if(request.message=="state"){
-								var state=atob(request.state);
-								if(state!="undefined"){
-									BrowserAutomaton.mergeObject(BrowserAutomaton.states[request.index].state,JSON.parse(state));
-									if(BrowserAutomaton.states[request.index].state.processEnd){
-										delete BrowserAutomaton.states[request.index];
+								var stateEncoded=atob(request.state);
+								if(stateEncoded!="undefined"){
+									var state=JSON.parse(stateEncoded);
+									if(state.cmd){
+										chrome.scripting.executeScript({
+											target:{tabId: sender.tab.id},
+											func: BrowserAutomaton.processStateCMD,
+											args: [
+												state.cmd,
+												state.args
+											]
+										});
+									}else{
+										state.cmd=null;
+										state.args=null;
+										BrowserAutomaton.mergeObject(BrowserAutomaton.states[request.index].state,state);
+										if(BrowserAutomaton.states[request.index].state.processEnd){
+											delete BrowserAutomaton.states[request.index];
+										};
+										if(BrowserAutomaton.states[request.index].state.processEndAndKeepFirewall){
+											BrowserAutomaton.states[request.index].code=undefined;
+										};
+										BrowserAutomaton.saveStates();
 									};
-									if(BrowserAutomaton.states[request.index].state.processEndAndKeepFirewall){
-										BrowserAutomaton.states[request.index].code=undefined;
-									};
-									BrowserAutomaton.saveStates();
 								};
 							};
 						};
