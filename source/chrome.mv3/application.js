@@ -171,7 +171,7 @@ BrowserAutomaton.processStateCallInterpret=function(type,elId,code,fnName,state)
                     "})();\r\n";	
 	// <Library>
 	//
-	// Sval
+	// Sval - 0.4.8
 	// https://github.com/Siubaak/sval
 	//
 	// MIT License
@@ -206,6 +206,24 @@ BrowserAutomaton.processStateCall=function(type,elId,code,fnName,state){
 		setTimeout(function(){
 			(document.head||document.documentElement).removeChild(el);
 			URL.revokeObjectURL(url);
+		},3000);
+		return;
+	};
+	if(type=="inline-nonce"){
+		var nonce=null;
+		var elScripts=document.getElementsByTagName("script");
+		for(var k=0;k<elScripts.length;++k){
+			if(elScripts[k].nonce){
+				nonce=elScripts[k].nonce;
+				break;
+			};
+		};
+		var el = document.createElement("script");
+		el.textContent = codeToRun;
+		el.setAttribute("nonce",nonce);
+		(document.head||document.documentElement).appendChild(el);
+		setTimeout(function(){
+			(document.head||document.documentElement).removeChild(el);
 		},3000);
 		return;
 	};
@@ -498,6 +516,24 @@ BrowserAutomaton.processProtectCall=function(type, codeToRun){
 		setTimeout(function(){
 			(document.head||document.documentElement).removeChild(el);
 			URL.revokeObjectURL(url);
+		},3000);
+		return;
+	};
+	if(type=="inline-nonce"){
+		var nonce=null;
+		var elScripts=document.getElementsByTagName("script");
+		for(var k=0;k<elScripts.length;++k){
+			if(elScripts[k].nonce){
+				nonce=elScripts[k].nonce;
+				break;
+			};
+		};
+		var el = document.createElement("script");
+		el.textContent = codeToRun;
+		el.setAttribute("nonce",nonce);
+		(document.head||document.documentElement).appendChild(el);
+		setTimeout(function(){
+			(document.head||document.documentElement).removeChild(el);
 		},3000);
 		return;
 	};
