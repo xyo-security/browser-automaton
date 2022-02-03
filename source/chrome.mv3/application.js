@@ -9571,7 +9571,7 @@ BrowserAutomaton.processStateGetCode=function(elId,code,fnName,state){
                 "\tdocument.getElementById(\""+elId+"\").click();\r\n"+
 				"};\r\n"+
            		code+";\r\n"+
-                "BrowserAutomaton.setState("+fnName+".call("+state+"));\r\n"
+                "BrowserAutomaton.setState("+fnName+".call("+state+"));\r\n"+
     "})();\r\n";	
 };
 
@@ -9616,14 +9616,14 @@ BrowserAutomaton.processStateCall=function(processCode,type,elId,code,fnName,sta
 		return;
 	};
 	var codeToRun =	"(function(){\r\n"+
-				"var BrowserAutomaton={};\r\n"+				
+				"var BrowserAutomaton={};\r\n"+
 				"BrowserAutomaton.setState=function(state){\r\n"+
 				"\tvar trustedPolicy=trustedTypes.createPolicy(\"TrustedHTML\", {createScript(code) {return code;}});\r\n"+
 				"\tdocument.getElementById(\""+elId+"\").innerHTML=trustedPolicy.createHTML(btoa(JSON.stringify(state)));\r\n"+
 				"\tdocument.getElementById(\""+elId+"\").click();\r\n"+
 				"};\r\n"+
 				code+";\r\n"+
-				"BrowserAutomaton.setState("+fnName+".call("+state+"));\r\n"				
+				"BrowserAutomaton.setState("+fnName+".call("+state+"));\r\n"+
 			"})();\r\n";
 	if(type=="trusted-inline"){
 		var trustedPolicy=trustedTypes.createPolicy("TrustedScript", {
@@ -9670,7 +9670,7 @@ BrowserAutomaton.processState=function(tabId,index,url,fnName,openerTabId){
 	};
 	if(typeof(BrowserAutomaton.states[index].code)==="undefined"){
 		return;
-	};
+	};	
 	BrowserAutomaton.states[index].state.index=index;
 	BrowserAutomaton.states[index].state.id=tabId;
 	BrowserAutomaton.states[index].state.parentId=openerTabId;
@@ -10094,8 +10094,13 @@ chrome.runtime.onMessage.addListener(function(request, sender){
 						if(typeof(request.message)=="undefined"){
 							return;
 						};
-						if(request.message=="code"){
-							var index=BrowserAutomaton.states.length;
+						if(request.message=="code"){							
+							var index;
+							for(index=0;index<BrowserAutomaton.states.length;++index){								
+								if(BrowserAutomaton.states[index].state.id==sender.tab.id){
+									break;
+								};
+							};							
 							BrowserAutomaton.states[index]={
 								state:{
 									index: index,
