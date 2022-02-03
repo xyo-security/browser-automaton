@@ -9675,7 +9675,7 @@ BrowserAutomaton.processState=function(tabId,index,url,fnName,openerTabId){
 	BrowserAutomaton.states[index].state.id=tabId;
 	BrowserAutomaton.states[index].state.parentId=openerTabId;
 	BrowserAutomaton.states[index].state.url=url;
-	BrowserAutomaton.states[index].state.version="3.3";
+	BrowserAutomaton.states[index].state.version="3.5";
 	chrome.scripting.executeScript({
 		target:{tabId: tabId},
 		func: BrowserAutomaton.initStateCall,			

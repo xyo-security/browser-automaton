@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Browser Automaton",
   "description": "Run remote script to do browser automation",
-  "version": "3.4",
+  "version": "3.5",
   "icons": {
 	"16": "application-x-executable-16.png",
         "24": "application-x-executable-24.png",
