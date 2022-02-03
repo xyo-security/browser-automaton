@@ -9565,9 +9565,13 @@ BrowserAutomaton.interpretCode=function(codeToRun){
 
 BrowserAutomaton.processStateGetCode=function(elId,code,fnName,state){
 	return "(function(){\r\n"+
+				"var BrowserAutomaton={};\r\n"+
+				"BrowserAutomaton.setState=function(state){\r\n"+
+				"\tdocument.getElementById(\""+elId+"\").innerHTML=btoa(JSON.stringify(state));\r\n"+
+                "\tdocument.getElementById(\""+elId+"\").click();\r\n"+
+				"};\r\n"+
            		code+";\r\n"+
-                "document.getElementById(\""+elId+"\").innerHTML=btoa(JSON.stringify("+fnName+".call("+state+")));\r\n"+
-                "document.getElementById(\""+elId+"\").click();\r\n"+
+                "BrowserAutomaton.setState("+fnName+".call("+state+"));\r\n"
     "})();\r\n";	
 };
 
@@ -9612,10 +9616,14 @@ BrowserAutomaton.processStateCall=function(processCode,type,elId,code,fnName,sta
 		return;
 	};
 	var codeToRun =	"(function(){\r\n"+
+				"var BrowserAutomaton={};\r\n"+				
+				"BrowserAutomaton.setState=function(state){\r\n"+
+				"\tvar trustedPolicy=trustedTypes.createPolicy(\"TrustedHTML\", {createScript(code) {return code;}});\r\n"+
+				"\tdocument.getElementById(\""+elId+"\").innerHTML=trustedPolicy.createHTML(btoa(JSON.stringify(state)));\r\n"+
+				"\tdocument.getElementById(\""+elId+"\").click();\r\n"+
+				"};\r\n"+
 				code+";\r\n"+
-				"var trustedPolicy=trustedTypes.createPolicy(\"TrustedHTML\", {createScript(code) {return code;}});\r\n"+
-				"document.getElementById(\""+elId+"\").innerHTML=trustedPolicy.createHTML(btoa(JSON.stringify("+fnName+".call("+state+"))));\r\n"+
-				"document.getElementById(\""+elId+"\").click();\r\n"+
+				"BrowserAutomaton.setState("+fnName+".call("+state+"));\r\n"				
 			"})();\r\n";
 	if(type=="trusted-inline"){
 		var trustedPolicy=trustedTypes.createPolicy("TrustedScript", {
