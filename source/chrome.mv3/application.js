@@ -5811,8 +5811,6 @@ BrowserAutomaton.interpretCode=function(codeToRun){
 // MIT License
 // Copyright (c) 2018 Siubaak
 //
-// *** Removed globalObj/Sandbox
-//
 
 (function (global, factory) {
 	typeof exports === 'object' && typeof module !== 'undefined' ? module.exports = factory(require('acorn')) :
@@ -5899,13 +5897,280 @@ BrowserAutomaton.interpretCode=function(codeToRun){
 		return target;
 	}
 	var assign = Object.assign || _assign;
-	var globalObj = window;	
+	var names = [];
+	var globalObj = create(null);
+	try {
+		if (!window.Object)
+			throw 0;
+		names = getOwnNames(globalObj = window).filter(function (n) { return n !== 'webkitStorageInfo'; });
+	}
+	catch (err) {
+		try {
+			if (!global.Object)
+				throw 0;
+			names = getOwnNames(globalObj = global).filter(function (n) { return n !== 'GLOBAL' && n !== 'root'; });
+		}
+		catch (err) {
+			try {
+				globalObj.Object = Object;
+			}
+			catch (err) { }
+			try {
+				globalObj.Function = Function;
+			}
+			catch (err) { }
+			try {
+				globalObj.Array = Array;
+			}
+			catch (err) { }
+			try {
+				globalObj.Number = Number;
+			}
+			catch (err) { }
+			try {
+				globalObj.parseFloat = parseFloat;
+			}
+			catch (err) { }
+			try {
+				globalObj.parseInt = parseInt;
+			}
+			catch (err) { }
+			try {
+				globalObj.Infinity = Infinity;
+			}
+			catch (err) { }
+			try {
+				globalObj.NaN = NaN;
+			}
+			catch (err) { }
+			try {
+				globalObj.undefined = undefined;
+			}
+			catch (err) { }
+			try {
+				globalObj.Boolean = Boolean;
+			}
+			catch (err) { }
+			try {
+				globalObj.String = String;
+			}
+			catch (err) { }
+			try {
+				globalObj.Symbol = Symbol;
+			}
+			catch (err) { }
+			try {
+				globalObj.Date = Date;
+			}
+			catch (err) { }
+			try {
+				globalObj.Promise = Promise;
+			}
+			catch (err) { }
+			try {
+				globalObj.RegExp = RegExp;
+			}
+			catch (err) { }
+			try {
+				globalObj.Error = Error;
+			}
+			catch (err) { }
+			try {
+				globalObj.EvalError = EvalError;
+			}
+			catch (err) { }
+			try {
+				globalObj.RangeError = RangeError;
+			}
+			catch (err) { }
+			try {
+				globalObj.ReferenceError = ReferenceError;
+			}
+			catch (err) { }
+			try {
+				globalObj.SyntaxError = SyntaxError;
+			}
+			catch (err) { }
+			try {
+				globalObj.TypeError = TypeError;
+			}
+			catch (err) { }
+			try {
+				globalObj.URIError = URIError;
+			}
+			catch (err) { }
+			try {
+				globalObj.JSON = JSON;
+			}
+			catch (err) { }
+			try {
+				globalObj.Math = Math;
+			}
+			catch (err) { }
+			try {
+				globalObj.console = console;
+			}
+			catch (err) { }
+			try {
+				globalObj.Intl = Intl;
+			}
+			catch (err) { }
+			try {
+				globalObj.ArrayBuffer = ArrayBuffer;
+			}
+			catch (err) { }
+			try {
+				globalObj.Uint8Array = Uint8Array;
+			}
+			catch (err) { }
+			try {
+				globalObj.Int8Array = Int8Array;
+			}
+			catch (err) { }
+			try {
+				globalObj.Uint16Array = Uint16Array;
+			}
+			catch (err) { }
+			try {
+				globalObj.Int16Array = Int16Array;
+			}
+			catch (err) { }
+			try {
+				globalObj.Uint32Array = Uint32Array;
+			}
+			catch (err) { }
+			try {
+				globalObj.Int32Array = Int32Array;
+			}
+			catch (err) { }
+			try {
+				globalObj.Float32Array = Float32Array;
+			}
+			catch (err) { }
+			try {
+				globalObj.Float64Array = Float64Array;
+			}
+			catch (err) { }
+			try {
+				globalObj.Uint8ClampedArray = Uint8ClampedArray;
+			}
+			catch (err) { }
+			try {
+				globalObj.DataView = DataView;
+			}
+			catch (err) { }
+			try {
+				globalObj.Map = Map;
+			}
+			catch (err) { }
+			try {
+				globalObj.Set = Set;
+			}
+			catch (err) { }
+			try {
+				globalObj.WeakMap = WeakMap;
+			}
+			catch (err) { }
+			try {
+				globalObj.WeakSet = WeakSet;
+			}
+			catch (err) { }
+			try {
+				globalObj.Proxy = Proxy;
+			}
+			catch (err) { }
+			try {
+				globalObj.Reflect = Reflect;
+			}
+			catch (err) { }
+			try {
+				globalObj.decodeURI = decodeURI;
+			}
+			catch (err) { }
+			try {
+				globalObj.decodeURIComponent = decodeURIComponent;
+			}
+			catch (err) { }
+			try {
+				globalObj.encodeURI = encodeURI;
+			}
+			catch (err) { }
+			try {
+				globalObj.encodeURIComponent = encodeURIComponent;
+			}
+			catch (err) { }
+			try {
+				globalObj.escape = escape;
+			}
+			catch (err) { }
+			try {
+				globalObj.unescape = unescape;
+			}
+			catch (err) { }
+			try {
+				globalObj.eval = eval;
+			}
+			catch (err) { }
+			try {
+				globalObj.isFinite = isFinite;
+			}
+			catch (err) { }
+			try {
+				globalObj.isNaN = isNaN;
+			}
+			catch (err) { }
+			try {
+				globalObj.SharedArrayBuffer = SharedArrayBuffer;
+			}
+			catch (err) { }
+			try {
+				globalObj.Atomics = Atomics;
+			}
+			catch (err) { }
+			try {
+				globalObj.WebAssembly = WebAssembly;
+			}
+			catch (err) { }
+			try {
+				globalObj.clearInterval = clearInterval;
+			}
+			catch (err) { }
+			try {
+				globalObj.clearTimeout = clearTimeout;
+			}
+			catch (err) { }
+			try {
+				globalObj.setInterval = setInterval;
+			}
+			catch (err) { }
+			try {
+				globalObj.setTimeout = setTimeout;
+			}
+			catch (err) { }
+			try {
+				globalObj.crypto = crypto;
+			}
+			catch (err) { }
+			names = getOwnNames(globalObj);
+		}
+	}
 	if (globalObj.Symbol) {
 		!globalObj.Symbol.iterator && (globalObj.Symbol.iterator = createSymbol('iterator'));
 		!globalObj.Symbol.asyncIterator && (globalObj.Symbol.asyncIterator = createSymbol('asynciterator'));
 	}
-	var win = window;	
-	var WINDOW = createSymbol('window');	
+	var win = create({});
+	for (var i = 0; i < names.length; i++) {
+		var name_1 = names[i];
+		try {
+			win[name_1] = globalObj[name_1];
+		}
+		catch (err) { }
+	}
+	var WINDOW = createSymbol('window');
+	function createSandBox() {
+		var _a;
+		return assign(create((_a = {}, _a[WINDOW] = globalObj, _a)), win);
+	}
 	function createSymbol(key) {
 		return key + Math.random().toString(36).substring(2);
 	}
@@ -9522,9 +9787,16 @@ BrowserAutomaton.interpretCode=function(codeToRun){
 			if ([3, 5, 6, 7, 8, 9, 10].indexOf(ecmaVer) === -1) {
 				throw new Error("unsupported ecmaVer");
 			}
-			this.options.ecmaVersion = ecmaVer;			
-			this.scope.let('window', globalObj);
-			this.scope.let('this', globalObj);
+			this.options.ecmaVersion = ecmaVer;
+			if (sandBox) {
+				var win = createSandBox();
+				this.scope.let('window', win);
+				this.scope.let('this', win);
+			}
+			else {
+				this.scope.let('window', globalObj);
+				this.scope.let('this', globalObj);
+			}
 			this.scope.const('exports', this.exports = {});
 		}
 		Sval.prototype.import = function (nameOrModules, mod) {
@@ -9557,17 +9829,17 @@ BrowserAutomaton.interpretCode=function(codeToRun){
   
 	return Sval;
   
-  })));  
-// </Library>
+  })));
+  // </Library>
 
-	(new Sval({ecmaVer: 2019})).run(codeToRun);	
+	(new Sval({ecmaVer: 2019,sandBox:false})).run(codeToRun);	
 };
 
 BrowserAutomaton.processStateGetCode=function(elId,code,fnName,state){
 	return "(function(){\r\n"+
 				"var BrowserAutomaton={};\r\n"+
 				"BrowserAutomaton.setState=function(state){\r\n"+
-				"\tdocument.getElementById(\""+elId+"\").innerHTML=btoa(JSON.stringify(state));\r\n"+
+				"\tdocument.getElementById(\""+elId+"\").innerHTML=window.btoa(JSON.stringify(state));\r\n"+
                 "\tdocument.getElementById(\""+elId+"\").click();\r\n"+
 				"};\r\n"+
            		code+";\r\n"+
@@ -9619,7 +9891,7 @@ BrowserAutomaton.processStateCall=function(processCode,type,elId,code,fnName,sta
 				"var BrowserAutomaton={};\r\n"+
 				"BrowserAutomaton.setState=function(state){\r\n"+
 				"\tvar trustedPolicy=trustedTypes.createPolicy(\"TrustedHTML\", {createScript(code) {return code;}});\r\n"+
-				"\tdocument.getElementById(\""+elId+"\").innerHTML=trustedPolicy.createHTML(btoa(JSON.stringify(state)));\r\n"+
+				"\tdocument.getElementById(\""+elId+"\").innerHTML=trustedPolicy.createHTML(window.btoa(JSON.stringify(state)));\r\n"+
 				"\tdocument.getElementById(\""+elId+"\").click();\r\n"+
 				"};\r\n"+
 				code+";\r\n"+
@@ -9768,7 +10040,7 @@ BrowserAutomaton.processCode=function(elId,fnName){
 				"\t\tif(counter >= 15){\r\n"+				      
 				"\t\t\treturn;\r\n"+
 				"\t\t};\r\n"+
-				"\t\tsetTimeout(function(){\r\n"+
+				"\t\twindow.setTimeout(function(){\r\n"+
 				"\t\t\tprocessEvent();\r\n"+
 				"\t\t},1000);\r\n"+
 				"\t\treturn;\r\n"+
@@ -10172,5 +10444,4 @@ chrome.runtime.onMessage.addListener(function(request, sender){
 		};
 	});
 });
-
 
