@@ -163,6 +163,616 @@ BrowserAutomaton.initStateCall=function(index,elId,fnCheck){
 	return fnCheck;
 };
 
+BrowserAutomaton.processStateGetCode=function(elId,code,fnName,state){
+	return "(function(){\r\n"+
+				"var BrowserAutomaton={};\r\n"+
+				"BrowserAutomaton.setState=function(state){\r\n"+
+				"\tdocument.getElementById(\""+elId+"\").innerHTML=window.btoa(JSON.stringify(state));\r\n"+
+                "\tdocument.getElementById(\""+elId+"\").click();\r\n"+
+				"};\r\n"+
+           		code+";\r\n"+
+                "BrowserAutomaton.setState("+fnName+".call("+state+"));\r\n"+
+    "})();\r\n";	
+};
+
+BrowserAutomaton.processStateCall=function(processCode,type,elId,code,fnName,state){
+    var codeToRun =	processCode;
+    if(type=="inline"){
+		var el = document.createElement("script");
+		el.textContent = codeToRun;
+		(document.head||document.documentElement).appendChild(el);
+		setTimeout(function(){
+			(document.head||document.documentElement).removeChild(el);
+		},3000);
+		return;
+	};
+	if(type=="blob"){
+		var el = document.createElement("script");
+		var url = URL.createObjectURL(new Blob([codeToRun],{type: "application/javascript"}));
+		el.src = url;
+		(document.head||document.documentElement).appendChild(el);
+		setTimeout(function(){
+			(document.head||document.documentElement).removeChild(el);
+			URL.revokeObjectURL(url);
+		},3000);
+		return;
+	};
+	if(type=="inline-nonce"){
+		var nonce=null;
+		var elScripts=document.getElementsByTagName("script");
+		for(var k=0;k<elScripts.length;++k){
+			if(elScripts[k].nonce){
+				nonce=elScripts[k].nonce;
+				break;
+			};
+		};
+		var el = document.createElement("script");
+		el.textContent = codeToRun;
+		el.setAttribute("nonce",nonce);
+		(document.head||document.documentElement).appendChild(el);
+		setTimeout(function(){
+			(document.head||document.documentElement).removeChild(el);
+		},3000);
+		return;
+	};
+	var codeToRun =	"(function(){\r\n"+
+				"var BrowserAutomaton={};\r\n"+
+				"BrowserAutomaton.setState=function(state){\r\n"+
+				"\tvar trustedPolicy=trustedTypes.createPolicy(\"TrustedHTML\", {createScript(code) {return code;}});\r\n"+
+				"\tdocument.getElementById(\""+elId+"\").innerHTML=trustedPolicy.createHTML(window.btoa(JSON.stringify(state)));\r\n"+
+				"\tdocument.getElementById(\""+elId+"\").click();\r\n"+
+				"};\r\n"+
+				code+";\r\n"+
+				"BrowserAutomaton.setState("+fnName+".call("+state+"));\r\n"+
+			"})();\r\n";
+	if(type=="trusted-inline"){
+		var trustedPolicy=trustedTypes.createPolicy("TrustedScript", {
+			createScript(code) {
+				return code;
+			}
+		});
+		var el = document.createElement("script");
+		el.textContent = trustedPolicy.createScript(codeToRun);
+		(document.head||document.documentElement).appendChild(el);
+		setTimeout(function(){
+			(document.head||document.documentElement).removeChild(el);
+		},3000);
+		return;
+	};
+	if(type=="trusted-inline-nonce"){
+		var trustedPolicy=trustedTypes.createPolicy("TrustedScript", {
+			createScript(code) {
+				return code;
+			}
+		});
+		var nonce=null;
+		var elScripts=document.getElementsByTagName("script");
+		for(var k=0;k<elScripts.length;++k){
+			if(elScripts[k].nonce){
+				nonce=elScripts[k].nonce;
+				break;
+			};
+		};
+		var el = document.createElement("script");
+		el.textContent = trustedPolicy.createScript(codeToRun);
+		el.setAttribute("nonce",nonce);
+		(document.head||document.documentElement).appendChild(el);
+		setTimeout(function(){
+			(document.head||document.documentElement).removeChild(el);
+		},3000);		
+		return;
+	};
+};
+
+BrowserAutomaton.processState=function(tabId,index,url,fnName,openerTabId){
+	if(typeof(BrowserAutomaton.states[index])==="undefined"){
+		return;
+	};
+	if(typeof(BrowserAutomaton.states[index].code)==="undefined"){
+		return;
+	};	
+	BrowserAutomaton.states[index].state.index=index;
+	BrowserAutomaton.states[index].state.id=tabId;
+	BrowserAutomaton.states[index].state.parentId=openerTabId;
+	BrowserAutomaton.states[index].state.url=url;
+	BrowserAutomaton.states[index].state.version="3.5";
+	chrome.scripting.executeScript({
+		target:{tabId: tabId},
+		func: BrowserAutomaton.initStateCall,			
+		args: [
+			index,
+			BrowserAutomaton.elIdRun,			
+			BrowserAutomaton.fnCheck			
+		]
+	},function(results){
+		const lastErr = chrome.runtime.lastError;
+		if (lastErr){
+			return;
+		};
+		var resultInfo;			
+		for (resultInfo of results){
+			var result=resultInfo.result;
+			if(typeof(result)==="undefined"){
+				continue;
+			};
+			if((""+result)===BrowserAutomaton.fnCheck){
+				if(typeof(BrowserAutomaton.states[index])==="undefined"){
+					return;
+				};
+				var processFunc=BrowserAutomaton.processStateCall;
+				var processCode=BrowserAutomaton.processStateGetCode(
+					BrowserAutomaton.elIdRun,
+					BrowserAutomaton.states[index].code,
+					fnName,JSON.stringify(BrowserAutomaton.states[index].state));					
+				if(BrowserAutomaton.states[index].state.type=="interpret"){
+					processFunc=BrowserAutomaton.interpretCode;
+				};
+				chrome.scripting.executeScript({
+					target:{tabId: tabId},
+					func: processFunc,
+					args: [
+						processCode,
+						BrowserAutomaton.states[index].state.type,
+						BrowserAutomaton.elIdRun,
+						BrowserAutomaton.states[index].code,
+						fnName,
+						JSON.stringify(BrowserAutomaton.states[index].state)
+					],
+					world: "MAIN"
+				});				
+			};
+		};
+	});
+};
+
+BrowserAutomaton.processStateCMD=function(cmd,args){
+	if(cmd=="window.open"){
+		window.open.apply(window,args);
+	};
+};
+
+BrowserAutomaton.initCode=function(url,elId,fnCheck){
+	var el=document.getElementById(elId);
+	if(el){
+		return "";
+	};
+	el=document.createElement("div");
+	el.id = elId;
+	el.style.display = "none";
+	el.innerHTML = "";
+	document.body.appendChild(el);
+	el.addEventListener("click",function(){
+		chrome.runtime.sendMessage({			
+			message: "code",
+			code: el.innerHTML,
+			url: url,
+			div: elId
+		});
+	})
+	return fnCheck;
+};
+
+BrowserAutomaton.processCode=function(elId,fnName){
+	var codeToRun =	"(function(){\r\n"+
+				"var counter=0;\r\n"+
+				"var processEvent=function(){\r\n"+
+				"\tvar retV=\"undefined\";\r\n"+
+				"\tif(typeof("+fnName+")===\"undefined\"){\r\n"+
+				"\t\tretV=\"loading\";\r\n"+
+				"\t}else{\r\n"+
+				"\t\tretV="+fnName+"();\r\n"+
+				"\t\t"+fnName+"=function(){return \"undefined\";};\r\n"+
+				"\t};\r\n"+
+				"\tif(retV===\"loading\"){\r\n"+
+				"\t\t++counter;\r\n"+
+				"\t\tif(counter >= 15){\r\n"+				      
+				"\t\t\treturn;\r\n"+
+				"\t\t};\r\n"+
+				"\t\twindow.setTimeout(function(){\r\n"+
+				"\t\t\tprocessEvent();\r\n"+
+				"\t\t},1000);\r\n"+
+				"\t\treturn;\r\n"+
+				"\t};\r\n"+					  
+				"\tdocument.getElementById(\""+elId+"\").innerHTML=retV;\r\n"+
+				"\tdocument.getElementById(\""+elId+"\").click();\r\n"+
+				"};\r\n"+
+				"processEvent();\r\n"+
+			"})();\r\n";
+	var nonce=null;
+	var elScripts=document.getElementsByTagName("script");
+	for(var k=0;k<elScripts.length;++k){
+		if(elScripts[k].nonce){
+			nonce=elScripts[k].nonce;
+			break;
+		};
+	};
+	var el = document.createElement("script");
+	el.textContent = codeToRun;
+	el.setAttribute("nonce",nonce);
+	(document.head||document.documentElement).appendChild(el);
+	setTimeout(function(){
+		(document.head||document.documentElement).removeChild(el);
+	},3000);
+};
+
+BrowserAutomaton.processLink=function(tabId,url){
+	chrome.scripting.executeScript({
+		target:{tabId: tabId},
+		func: BrowserAutomaton.initCode,
+		args: [
+			url,
+			BrowserAutomaton.elId,
+			BrowserAutomaton.fnCheck
+		]		
+	},function(results){
+		const lastErr = chrome.runtime.lastError;
+		if (lastErr){
+			return;
+		};
+		var resultInfo;
+		for (resultInfo of results){
+			var result=resultInfo.result;
+			if(typeof(result)==="undefined"){
+				continue;
+			};
+			if((""+result)===BrowserAutomaton.fnCheck){
+				chrome.scripting.executeScript({
+					target:{tabId: tabId},
+					func: BrowserAutomaton.processCode,
+					args: [
+						BrowserAutomaton.elId,
+						BrowserAutomaton.fnName						
+					],
+					world: "MAIN"
+				});
+			};
+		};
+	});
+};
+
+BrowserAutomaton.processTabUrl=function(tabId, url, openerTabId){
+	if(url.indexOf("extension=23ab9c0e7b432f42000005202e2cfa11889bd299e36232cc53dbc91bc384f9b3")>=0){		
+		if((url.indexOf("://localhost/")>=0)||BrowserAutomaton.matchString(url,"://localhost:.*/")){
+			BrowserAutomaton.processLink(tabId, url);
+			return;
+		};
+		BrowserAutomaton.getOptions(function(){
+			if(Array.isArray(BrowserAutomaton.allowedLink)){
+				for(k=0; k<BrowserAutomaton.allowedLink.length; ++k){
+					if(BrowserAutomaton.allowedLink[k].length>4){
+						if(BrowserAutomaton.matchString(url,"://"+BrowserAutomaton.allowedLink[k])){
+							BrowserAutomaton.processLink(tabId,url);
+							return;
+						};
+					};
+				};
+			};
+		});
+	};
+	for(var k=0;k<BrowserAutomaton.states.length;++k){
+		if(Array.isArray(BrowserAutomaton.states[k].state.action)){
+			for(var m=0;m<BrowserAutomaton.states[k].state.action.length;++m){
+				if(BrowserAutomaton.matchString(url,BrowserAutomaton.states[k].state.action[m])){
+					BrowserAutomaton.processState(tabId,k,url,"processUrl",openerTabId);
+				};
+			};
+		};
+	};
+};
+
+BrowserAutomaton.processTab=function(tabId, tab){
+	chrome.scripting.executeScript({
+		target:{tabId: tabId},
+		func: function(){
+			return document.location.href;
+		}
+	},function(results){
+		const lastErr = chrome.runtime.lastError;
+		if (lastErr){
+			return;
+		};
+		var resultInfo;
+		for (resultInfo of results){
+			var result=resultInfo.result;
+			if(typeof(result)==="undefined"){
+				continue;
+			};
+			var url=""+result;
+			if(url.length>0){
+				BrowserAutomaton.processTabUrl(tabId, url, tab.openerTabId);
+			};
+		};		
+	});
+};
+
+BrowserAutomaton.matchString=function(str,what_){
+	return (new RegExp(what_,"i")).test(str);
+};
+
+BrowserAutomaton.processProtectCall=function(codeToRun, type){
+	if(type=="inline"){
+		var el = document.createElement("script");
+		el.textContent = codeToRun;
+		(document.head||document.documentElement).appendChild(el);
+		setTimeout(function(){
+			(document.head||document.documentElement).removeChild(el);
+		},3000);
+		return;
+	};
+	if(type=="blob"){
+		var el = document.createElement("script");
+		var url = URL.createObjectURL(new Blob([codeToRun],{type: "application/javascript"}));
+		el.src = url;
+		(document.head||document.documentElement).appendChild(el);
+		setTimeout(function(){
+			(document.head||document.documentElement).removeChild(el);
+			URL.revokeObjectURL(url);
+		},3000);
+		return;
+	};
+	if(type=="inline-nonce"){
+		var nonce=null;
+		var elScripts=document.getElementsByTagName("script");
+		for(var k=0;k<elScripts.length;++k){
+			if(elScripts[k].nonce){
+				nonce=elScripts[k].nonce;
+				break;
+			};
+		};
+		var el = document.createElement("script");
+		el.textContent = codeToRun;
+		el.setAttribute("nonce",nonce);
+		(document.head||document.documentElement).appendChild(el);
+		setTimeout(function(){
+			(document.head||document.documentElement).removeChild(el);
+		},3000);
+		return;
+	};
+	if(type=="trusted-inline"){
+		var trustedPolicy=trustedTypes.createPolicy("TrustedScript", {
+			createScript(code) {
+				return code;
+			}
+		});
+		var el = document.createElement("script");
+		el.textContent = trustedPolicy.createScript(codeToRun);
+		(document.head||document.documentElement).appendChild(el);
+		setTimeout(function(){
+			(document.head||document.documentElement).removeChild(el);
+		},3000);
+		return;
+	};
+	if(type=="trusted-inline-nonce"){
+		var trustedPolicy=trustedTypes.createPolicy("TrustedScript", {
+			createScript(code) {
+				return code;
+			}
+		});
+		var nonce=null;
+		var elScripts=document.getElementsByTagName("script");
+		for(var k=0;k<elScripts.length;++k){
+			if(elScripts[k].nonce){
+				nonce=elScripts[k].nonce;
+				break;
+			};
+		};
+		var el = document.createElement("script");
+		el.textContent = trustedPolicy.createScript(codeToRun);
+		el.setAttribute("nonce",nonce);
+		(document.head||document.documentElement).appendChild(el);
+		setTimeout(function(){
+			(document.head||document.documentElement).removeChild(el);
+		},3000);		
+		return;
+	};
+};
+
+BrowserAutomaton.processProtect=function(state,details){
+	if(state.protect){
+		if(state.protect.code){
+			if(Array.isArray(state.protect.url)){
+				for(var m=0;m<state.protect.url.length;++m){
+					if(BrowserAutomaton.matchString(details.url,state.protect.url[m])){
+						var processFunc=BrowserAutomaton.processProtectCall;
+						if(state.type=="interpret"){
+							processFunc=BrowserAutomaton.interpretCode;
+						};
+						chrome.scripting.executeScript({
+							target:{tabId: details.tabId, frameIds: [details.frameId]},
+							func: processFunc,
+							args: [state.protect.code, state.type],
+							world: "MAIN"
+						},function(results){
+							const lastErr = chrome.runtime.lastError;
+							if (lastErr){
+								return;
+							};
+							BrowserAutomaton.states[state.index].state.protect.isProtected=true;
+							BrowserAutomaton.saveStates();
+						});
+					};
+				};
+			};
+		};
+	};	
+};
+
+BrowserAutomaton.processFirewall=function(state,details){
+	if(state.firewall){			
+		if(Array.isArray(state.firewall.allow)){
+			for(var m=0;m<state.firewall.allow.length;++m){
+				if(BrowserAutomaton.matchString(details.url,state.firewall.allow[m])){
+					return;
+				};
+			};
+		};			
+		if(Array.isArray(state.firewall.deny)){
+			for(var m=0;m<state.firewall.deny.length;++m){
+				if(BrowserAutomaton.matchString(details.url,state.firewall.deny[m])){
+					var url="about:blank";
+					if(state.firewall.url){
+							url=state.firewall.url;
+					};
+					if(details.url!==url){
+						chrome.scripting.executeScript({
+							target:{tabId: details.tabId, frameIds: [details.frameId]},
+							func: function(url){
+								document.location.assign(url);
+							},
+							args: [url]
+						},function(results){
+							const lastErr = chrome.runtime.lastError;
+							if (lastErr){
+								return;
+							};
+						});
+						return;
+					};
+				};
+			};
+		};
+	};	
+};
+
+BrowserAutomaton.listenTab=function(tabId,tab){
+	if(typeof(tab.status) === "undefined"){
+		setTimeout(function(){
+			BrowserAutomaton.listenTab(tabId,tab);
+		},1000);
+		return;
+	};
+
+	if(tab.status === "complete"){
+		BrowserAutomaton.processTab(tabId, tab);
+	};
+};
+
+chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab){
+	BrowserAutomaton.loadStates(function(){
+		if (changeInfo.status === "complete"){
+			BrowserAutomaton.processTab(tabId, tab);
+			return;
+		};
+		if(typeof(changeInfo.status) === "undefined"){
+			if(tab.status === "complete"){
+				BrowserAutomaton.processTab(tabId, tab);
+				return;
+			};
+			BrowserAutomaton.listenTab(tabId, tab);
+		};
+	});
+});
+
+chrome.webNavigation.onCommitted.addListener(function(details){
+	BrowserAutomaton.loadStates(function(){
+		for(var k=0;k<BrowserAutomaton.states.length;++k){
+			BrowserAutomaton.processProtect(BrowserAutomaton.states[k].state,details);
+			BrowserAutomaton.processFirewall(BrowserAutomaton.states[k].state,details);
+		};
+	});
+});
+
+chrome.tabs.query({currentWindow:true,status:"complete"},function(tabs){
+	BrowserAutomaton.loadStates(function(){
+		for(var k=0; k<tabs.length; ++k){
+			BrowserAutomaton.processTab(tabs[k].id, tabs[k]);
+		};
+	});
+});
+
+chrome.runtime.onStartup.addListener(function(){
+	BrowserAutomaton.states=[];
+	BrowserAutomaton.saveStates();
+});
+
+chrome.runtime.onMessage.addListener(function(request, sender){
+	BrowserAutomaton.loadStates(function(){
+		if(sender.tab){
+			if(typeof(request)!="undefined"){
+				if(typeof(request)==="object"){
+					if(request!=null){
+						if(typeof(request.message)=="undefined"){
+							return;
+						};
+						if(request.message=="code"){							
+							var index;
+							for(index=0;index<BrowserAutomaton.states.length;++index){								
+								if(BrowserAutomaton.states[index].state.id==sender.tab.id){
+									break;
+								};
+							};							
+							BrowserAutomaton.states[index]={
+								state:{
+									index: index,
+									id: sender.tab.id,
+									firewall:{
+										url: "about:blank",
+										allow: [],
+										deny: []
+									},
+									action: ["(.*)"],
+									protect:{
+										url: [],
+										code: undefined,
+										isProtected: false
+									},
+									type: "inline",
+									cmd: null,
+									args: null
+								},
+								code: atob(request.code)
+							};
+							BrowserAutomaton.saveStates();
+							BrowserAutomaton.processState(sender.tab.id,index,request.url,"init");
+						};
+						if(typeof(request.index)!="undefined"){
+							if(request.message=="state"){
+								var stateEncoded=atob(request.state);
+								if(stateEncoded!="undefined"){
+									var state=JSON.parse(stateEncoded);
+									if(state.cmd){
+										chrome.scripting.executeScript({
+											target:{tabId: sender.tab.id},
+											func: BrowserAutomaton.processStateCMD,
+											args: [
+												state.cmd,
+												state.args
+											]
+										});
+									}else{
+										state.cmd=null;
+										state.args=null;
+										BrowserAutomaton.mergeObject(BrowserAutomaton.states[request.index].state,state);
+										if(BrowserAutomaton.states[request.index].state.processEnd){
+											delete BrowserAutomaton.states[request.index];
+										};
+										if(BrowserAutomaton.states[request.index].state.processEndAndKeepFirewall){
+											BrowserAutomaton.states[request.index].code=undefined;
+										};
+										BrowserAutomaton.saveStates();
+									};
+								};
+							};
+						};
+						if(typeof(request.div)!="undefined"){
+							chrome.scripting.executeScript({
+								target:{tabId: sender.tab.id},
+								func: function(elId){
+									var el=document.getElementById(elId);
+									if(el){
+										el.innerHTML="";
+									};
+								},
+								args: [request.div]
+							});
+						};												
+					};
+				};
+			};
+		};
+	});
+});
+
 BrowserAutomaton.interpretCode=function(codeToRun){
 // <Library>
 
@@ -9834,614 +10444,3 @@ BrowserAutomaton.interpretCode=function(codeToRun){
 
 	(new Sval({ecmaVer: 2019,sandBox:false})).run(codeToRun);	
 };
-
-BrowserAutomaton.processStateGetCode=function(elId,code,fnName,state){
-	return "(function(){\r\n"+
-				"var BrowserAutomaton={};\r\n"+
-				"BrowserAutomaton.setState=function(state){\r\n"+
-				"\tdocument.getElementById(\""+elId+"\").innerHTML=window.btoa(JSON.stringify(state));\r\n"+
-                "\tdocument.getElementById(\""+elId+"\").click();\r\n"+
-				"};\r\n"+
-           		code+";\r\n"+
-                "BrowserAutomaton.setState("+fnName+".call("+state+"));\r\n"+
-    "})();\r\n";	
-};
-
-BrowserAutomaton.processStateCall=function(processCode,type,elId,code,fnName,state){
-    var codeToRun =	processCode;
-    if(type=="inline"){
-		var el = document.createElement("script");
-		el.textContent = codeToRun;
-		(document.head||document.documentElement).appendChild(el);
-		setTimeout(function(){
-			(document.head||document.documentElement).removeChild(el);
-		},3000);
-		return;
-	};
-	if(type=="blob"){
-		var el = document.createElement("script");
-		var url = URL.createObjectURL(new Blob([codeToRun],{type: "application/javascript"}));
-		el.src = url;
-		(document.head||document.documentElement).appendChild(el);
-		setTimeout(function(){
-			(document.head||document.documentElement).removeChild(el);
-			URL.revokeObjectURL(url);
-		},3000);
-		return;
-	};
-	if(type=="inline-nonce"){
-		var nonce=null;
-		var elScripts=document.getElementsByTagName("script");
-		for(var k=0;k<elScripts.length;++k){
-			if(elScripts[k].nonce){
-				nonce=elScripts[k].nonce;
-				break;
-			};
-		};
-		var el = document.createElement("script");
-		el.textContent = codeToRun;
-		el.setAttribute("nonce",nonce);
-		(document.head||document.documentElement).appendChild(el);
-		setTimeout(function(){
-			(document.head||document.documentElement).removeChild(el);
-		},3000);
-		return;
-	};
-	var codeToRun =	"(function(){\r\n"+
-				"var BrowserAutomaton={};\r\n"+
-				"BrowserAutomaton.setState=function(state){\r\n"+
-				"\tvar trustedPolicy=trustedTypes.createPolicy(\"TrustedHTML\", {createScript(code) {return code;}});\r\n"+
-				"\tdocument.getElementById(\""+elId+"\").innerHTML=trustedPolicy.createHTML(window.btoa(JSON.stringify(state)));\r\n"+
-				"\tdocument.getElementById(\""+elId+"\").click();\r\n"+
-				"};\r\n"+
-				code+";\r\n"+
-				"BrowserAutomaton.setState("+fnName+".call("+state+"));\r\n"+
-			"})();\r\n";
-	if(type=="trusted-inline"){
-		var trustedPolicy=trustedTypes.createPolicy("TrustedScript", {
-			createScript(code) {
-				return code;
-			}
-		});
-		var el = document.createElement("script");
-		el.textContent = trustedPolicy.createScript(codeToRun);
-		(document.head||document.documentElement).appendChild(el);
-		setTimeout(function(){
-			(document.head||document.documentElement).removeChild(el);
-		},3000);
-		return;
-	};
-	if(type=="trusted-inline-nonce"){
-		var trustedPolicy=trustedTypes.createPolicy("TrustedScript", {
-			createScript(code) {
-				return code;
-			}
-		});
-		var nonce=null;
-		var elScripts=document.getElementsByTagName("script");
-		for(var k=0;k<elScripts.length;++k){
-			if(elScripts[k].nonce){
-				nonce=elScripts[k].nonce;
-				break;
-			};
-		};
-		var el = document.createElement("script");
-		el.textContent = trustedPolicy.createScript(codeToRun);
-		el.setAttribute("nonce",nonce);
-		(document.head||document.documentElement).appendChild(el);
-		setTimeout(function(){
-			(document.head||document.documentElement).removeChild(el);
-		},3000);		
-		return;
-	};
-};
-
-BrowserAutomaton.processState=function(tabId,index,url,fnName,openerTabId){
-	if(typeof(BrowserAutomaton.states[index])==="undefined"){
-		return;
-	};
-	if(typeof(BrowserAutomaton.states[index].code)==="undefined"){
-		return;
-	};	
-	BrowserAutomaton.states[index].state.index=index;
-	BrowserAutomaton.states[index].state.id=tabId;
-	BrowserAutomaton.states[index].state.parentId=openerTabId;
-	BrowserAutomaton.states[index].state.url=url;
-	BrowserAutomaton.states[index].state.version="3.5";
-	chrome.scripting.executeScript({
-		target:{tabId: tabId},
-		func: BrowserAutomaton.initStateCall,			
-		args: [
-			index,
-			BrowserAutomaton.elIdRun,			
-			BrowserAutomaton.fnCheck			
-		]
-	},function(results){
-		const lastErr = chrome.runtime.lastError;
-		if (lastErr){
-			return;
-		};
-		var resultInfo;			
-		for (resultInfo of results){
-			var result=resultInfo.result;
-			if(typeof(result)==="undefined"){
-				continue;
-			};
-			if((""+result)===BrowserAutomaton.fnCheck){
-				if(typeof(BrowserAutomaton.states[index])==="undefined"){
-					return;
-				};
-				var processFunc=BrowserAutomaton.processStateCall;
-				var processCode=BrowserAutomaton.processStateGetCode(
-					BrowserAutomaton.elIdRun,
-					BrowserAutomaton.states[index].code,
-					fnName,JSON.stringify(BrowserAutomaton.states[index].state));					
-				if(BrowserAutomaton.states[index].state.type=="interpret"){
-					processFunc=BrowserAutomaton.interpretCode;
-				};
-				chrome.scripting.executeScript({
-					target:{tabId: tabId},
-					func: processFunc,
-					args: [
-						processCode,
-						BrowserAutomaton.states[index].state.type,
-						BrowserAutomaton.elIdRun,
-						BrowserAutomaton.states[index].code,
-						fnName,
-						JSON.stringify(BrowserAutomaton.states[index].state)
-					],
-					world: "MAIN"
-				});				
-			};
-		};
-	});
-};
-
-BrowserAutomaton.processStateCMD=function(cmd,args){
-	if(cmd=="window.open"){
-		window.open.apply(window,args);
-	};
-};
-
-BrowserAutomaton.initCode=function(url,elId,fnCheck){
-	var el=document.getElementById(elId);
-	if(el){
-		return "";
-	};
-	el=document.createElement("div");
-	el.id = elId;
-	el.style.display = "none";
-	el.innerHTML = "";
-	document.body.appendChild(el);
-	el.addEventListener("click",function(){
-		chrome.runtime.sendMessage({			
-			message: "code",
-			code: el.innerHTML,
-			url: url,
-			div: elId
-		});
-	})
-	return fnCheck;
-};
-
-BrowserAutomaton.processCode=function(elId,fnName){
-	var codeToRun =	"(function(){\r\n"+
-				"var counter=0;\r\n"+
-				"var processEvent=function(){\r\n"+
-				"\tvar retV=\"undefined\";\r\n"+
-				"\tif(typeof("+fnName+")===\"undefined\"){\r\n"+
-				"\t\tretV=\"loading\";\r\n"+
-				"\t}else{\r\n"+
-				"\t\tretV="+fnName+"();\r\n"+
-				"\t\t"+fnName+"=function(){return \"undefined\";};\r\n"+
-				"\t};\r\n"+
-				"\tif(retV===\"loading\"){\r\n"+
-				"\t\t++counter;\r\n"+
-				"\t\tif(counter >= 15){\r\n"+				      
-				"\t\t\treturn;\r\n"+
-				"\t\t};\r\n"+
-				"\t\twindow.setTimeout(function(){\r\n"+
-				"\t\t\tprocessEvent();\r\n"+
-				"\t\t},1000);\r\n"+
-				"\t\treturn;\r\n"+
-				"\t};\r\n"+					  
-				"\tdocument.getElementById(\""+elId+"\").innerHTML=retV;\r\n"+
-				"\tdocument.getElementById(\""+elId+"\").click();\r\n"+
-				"};\r\n"+
-				"processEvent();\r\n"+
-			"})();\r\n";
-	var nonce=null;
-	var elScripts=document.getElementsByTagName("script");
-	for(var k=0;k<elScripts.length;++k){
-		if(elScripts[k].nonce){
-			nonce=elScripts[k].nonce;
-			break;
-		};
-	};
-	var el = document.createElement("script");
-	el.textContent = codeToRun;
-	el.setAttribute("nonce",nonce);
-	(document.head||document.documentElement).appendChild(el);
-	setTimeout(function(){
-		(document.head||document.documentElement).removeChild(el);
-	},3000);
-};
-
-BrowserAutomaton.processLink=function(tabId,url){
-	chrome.scripting.executeScript({
-		target:{tabId: tabId},
-		func: BrowserAutomaton.initCode,
-		args: [
-			url,
-			BrowserAutomaton.elId,
-			BrowserAutomaton.fnCheck
-		]		
-	},function(results){
-		const lastErr = chrome.runtime.lastError;
-		if (lastErr){
-			return;
-		};
-		var resultInfo;
-		for (resultInfo of results){
-			var result=resultInfo.result;
-			if(typeof(result)==="undefined"){
-				continue;
-			};
-			if((""+result)===BrowserAutomaton.fnCheck){
-				chrome.scripting.executeScript({
-					target:{tabId: tabId},
-					func: BrowserAutomaton.processCode,
-					args: [
-						BrowserAutomaton.elId,
-						BrowserAutomaton.fnName						
-					],
-					world: "MAIN"
-				});
-			};
-		};
-	});
-};
-
-BrowserAutomaton.processTabUrl=function(tabId, url, openerTabId){
-	if(url.indexOf("extension=23ab9c0e7b432f42000005202e2cfa11889bd299e36232cc53dbc91bc384f9b3")>=0){		
-		if((url.indexOf("://localhost/")>=0)||BrowserAutomaton.matchString(url,"://localhost:.*/")){
-			BrowserAutomaton.processLink(tabId, url);
-			return;
-		};
-		BrowserAutomaton.getOptions(function(){
-			if(Array.isArray(BrowserAutomaton.allowedLink)){
-				for(k=0; k<BrowserAutomaton.allowedLink.length; ++k){
-					if(BrowserAutomaton.allowedLink[k].length>4){
-						if(BrowserAutomaton.matchString(url,"://"+BrowserAutomaton.allowedLink[k])){
-							BrowserAutomaton.processLink(tabId,url);
-							return;
-						};
-					};
-				};
-			};
-		});
-	};
-	for(var k=0;k<BrowserAutomaton.states.length;++k){
-		if(Array.isArray(BrowserAutomaton.states[k].state.action)){
-			for(var m=0;m<BrowserAutomaton.states[k].state.action.length;++m){
-				if(BrowserAutomaton.matchString(url,BrowserAutomaton.states[k].state.action[m])){
-					BrowserAutomaton.processState(tabId,k,url,"processUrl",openerTabId);
-				};
-			};
-		};
-	};
-};
-
-BrowserAutomaton.processTab=function(tabId, tab){
-	chrome.scripting.executeScript({
-		target:{tabId: tabId},
-		func: function(){
-			return document.location.href;
-		}
-	},function(results){
-		const lastErr = chrome.runtime.lastError;
-		if (lastErr){
-			return;
-		};
-		var resultInfo;
-		for (resultInfo of results){
-			var result=resultInfo.result;
-			if(typeof(result)==="undefined"){
-				continue;
-			};
-			var url=""+result;
-			if(url.length>0){
-				BrowserAutomaton.processTabUrl(tabId, url, tab.openerTabId);
-			};
-		};		
-	});
-};
-
-BrowserAutomaton.matchString=function(str,what_){
-	return (new RegExp(what_,"i")).test(str);
-};
-
-BrowserAutomaton.processProtectCall=function(codeToRun, type){
-	if(type=="inline"){
-		var el = document.createElement("script");
-		el.textContent = codeToRun;
-		(document.head||document.documentElement).appendChild(el);
-		setTimeout(function(){
-			(document.head||document.documentElement).removeChild(el);
-		},3000);
-		return;
-	};
-	if(type=="blob"){
-		var el = document.createElement("script");
-		var url = URL.createObjectURL(new Blob([codeToRun],{type: "application/javascript"}));
-		el.src = url;
-		(document.head||document.documentElement).appendChild(el);
-		setTimeout(function(){
-			(document.head||document.documentElement).removeChild(el);
-			URL.revokeObjectURL(url);
-		},3000);
-		return;
-	};
-	if(type=="inline-nonce"){
-		var nonce=null;
-		var elScripts=document.getElementsByTagName("script");
-		for(var k=0;k<elScripts.length;++k){
-			if(elScripts[k].nonce){
-				nonce=elScripts[k].nonce;
-				break;
-			};
-		};
-		var el = document.createElement("script");
-		el.textContent = codeToRun;
-		el.setAttribute("nonce",nonce);
-		(document.head||document.documentElement).appendChild(el);
-		setTimeout(function(){
-			(document.head||document.documentElement).removeChild(el);
-		},3000);
-		return;
-	};
-	if(type=="trusted-inline"){
-		var trustedPolicy=trustedTypes.createPolicy("TrustedScript", {
-			createScript(code) {
-				return code;
-			}
-		});
-		var el = document.createElement("script");
-		el.textContent = trustedPolicy.createScript(codeToRun);
-		(document.head||document.documentElement).appendChild(el);
-		setTimeout(function(){
-			(document.head||document.documentElement).removeChild(el);
-		},3000);
-		return;
-	};
-	if(type=="trusted-inline-nonce"){
-		var trustedPolicy=trustedTypes.createPolicy("TrustedScript", {
-			createScript(code) {
-				return code;
-			}
-		});
-		var nonce=null;
-		var elScripts=document.getElementsByTagName("script");
-		for(var k=0;k<elScripts.length;++k){
-			if(elScripts[k].nonce){
-				nonce=elScripts[k].nonce;
-				break;
-			};
-		};
-		var el = document.createElement("script");
-		el.textContent = trustedPolicy.createScript(codeToRun);
-		el.setAttribute("nonce",nonce);
-		(document.head||document.documentElement).appendChild(el);
-		setTimeout(function(){
-			(document.head||document.documentElement).removeChild(el);
-		},3000);		
-		return;
-	};
-};
-
-BrowserAutomaton.processProtect=function(state,details){
-	if(state.protect){
-		if(state.protect.code){
-			if(Array.isArray(state.protect.url)){
-				for(var m=0;m<state.protect.url.length;++m){
-					if(BrowserAutomaton.matchString(details.url,state.protect.url[m])){
-						var processFunc=BrowserAutomaton.processProtectCall;
-						if(state.type=="interpret"){
-							processFunc=BrowserAutomaton.interpretCode;
-						};
-						chrome.scripting.executeScript({
-							target:{tabId: details.tabId, frameIds: [details.frameId]},
-							func: processFunc,
-							args: [state.protect.code, state.type],
-							world: "MAIN"
-						},function(results){
-							const lastErr = chrome.runtime.lastError;
-							if (lastErr){
-								return;
-							};
-							BrowserAutomaton.states[state.index].state.protect.isProtected=true;
-							BrowserAutomaton.saveStates();
-						});
-					};
-				};
-			};
-		};
-	};	
-};
-
-BrowserAutomaton.processFirewall=function(state,details){
-	if(state.firewall){			
-		if(Array.isArray(state.firewall.allow)){
-			for(var m=0;m<state.firewall.allow.length;++m){
-				if(BrowserAutomaton.matchString(details.url,state.firewall.allow[m])){
-					return;
-				};
-			};
-		};			
-		if(Array.isArray(state.firewall.deny)){
-			for(var m=0;m<state.firewall.deny.length;++m){
-				if(BrowserAutomaton.matchString(details.url,state.firewall.deny[m])){
-					var url="about:blank";
-					if(state.firewall.url){
-							url=state.firewall.url;
-					};
-					if(details.url!==url){
-						chrome.scripting.executeScript({
-							target:{tabId: details.tabId, frameIds: [details.frameId]},
-							func: function(url){
-								document.location.assign(url);
-							},
-							args: [url]
-						},function(results){
-							const lastErr = chrome.runtime.lastError;
-							if (lastErr){
-								return;
-							};
-						});
-						return;
-					};
-				};
-			};
-		};
-	};	
-};
-
-BrowserAutomaton.listenTab=function(tabId,tab){
-	if(typeof(tab.status) === "undefined"){
-		setTimeout(function(){
-			BrowserAutomaton.listenTab(tabId,tab);
-		},1000);
-		return;
-	};
-
-	if(tab.status === "complete"){
-		BrowserAutomaton.processTab(tabId, tab);
-	};
-};
-
-chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab){
-	BrowserAutomaton.loadStates(function(){
-		if (changeInfo.status === "complete"){
-			BrowserAutomaton.processTab(tabId, tab);
-			return;
-		};
-		if(typeof(changeInfo.status) === "undefined"){
-			if(tab.status === "complete"){
-				BrowserAutomaton.processTab(tabId, tab);
-				return;
-			};
-			BrowserAutomaton.listenTab(tabId, tab);
-		};
-	});
-});
-
-chrome.webNavigation.onCommitted.addListener(function(details){
-	BrowserAutomaton.loadStates(function(){
-		for(var k=0;k<BrowserAutomaton.states.length;++k){
-			BrowserAutomaton.processProtect(BrowserAutomaton.states[k].state,details);
-			BrowserAutomaton.processFirewall(BrowserAutomaton.states[k].state,details);
-		};
-	});
-});
-
-chrome.tabs.query({currentWindow:true,status:"complete"},function(tabs){
-	BrowserAutomaton.loadStates(function(){
-		for(var k=0; k<tabs.length; ++k){
-			BrowserAutomaton.processTab(tabs[k].id, tabs[k]);
-		};
-	});
-});
-
-chrome.runtime.onStartup.addListener(function(){
-	BrowserAutomaton.states=[];
-	BrowserAutomaton.saveStates();
-});
-
-chrome.runtime.onMessage.addListener(function(request, sender){
-	BrowserAutomaton.loadStates(function(){
-		if(sender.tab){
-			if(typeof(request)!="undefined"){
-				if(typeof(request)==="object"){
-					if(request!=null){
-						if(typeof(request.message)=="undefined"){
-							return;
-						};
-						if(request.message=="code"){							
-							var index;
-							for(index=0;index<BrowserAutomaton.states.length;++index){								
-								if(BrowserAutomaton.states[index].state.id==sender.tab.id){
-									break;
-								};
-							};							
-							BrowserAutomaton.states[index]={
-								state:{
-									index: index,
-									id: sender.tab.id,
-									firewall:{
-										url: "about:blank",
-										allow: [],
-										deny: []
-									},
-									action: ["(.*)"],
-									protect:{
-										url: [],
-										code: undefined,
-										isProtected: false
-									},
-									type: "inline",
-									cmd: null,
-									args: null
-								},
-								code: atob(request.code)
-							};
-							BrowserAutomaton.saveStates();
-							BrowserAutomaton.processState(sender.tab.id,index,request.url,"init");
-						};
-						if(typeof(request.index)!="undefined"){
-							if(request.message=="state"){
-								var stateEncoded=atob(request.state);
-								if(stateEncoded!="undefined"){
-									var state=JSON.parse(stateEncoded);
-									if(state.cmd){
-										chrome.scripting.executeScript({
-											target:{tabId: sender.tab.id},
-											func: BrowserAutomaton.processStateCMD,
-											args: [
-												state.cmd,
-												state.args
-											]
-										});
-									}else{
-										state.cmd=null;
-										state.args=null;
-										BrowserAutomaton.mergeObject(BrowserAutomaton.states[request.index].state,state);
-										if(BrowserAutomaton.states[request.index].state.processEnd){
-											delete BrowserAutomaton.states[request.index];
-										};
-										if(BrowserAutomaton.states[request.index].state.processEndAndKeepFirewall){
-											BrowserAutomaton.states[request.index].code=undefined;
-										};
-										BrowserAutomaton.saveStates();
-									};
-								};
-							};
-						};
-						if(typeof(request.div)!="undefined"){
-							chrome.scripting.executeScript({
-								target:{tabId: sender.tab.id},
-								func: function(elId){
-									var el=document.getElementById(elId);
-									if(el){
-										el.innerHTML="";
-									};
-								},
-								args: [request.div]
-							});
-						};												
-					};
-				};
-			};
-		};
-	});
-});
-
